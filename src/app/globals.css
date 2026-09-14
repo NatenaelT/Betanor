@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+  --betanor-navy: #0b1f3a;
+  --betanor-dark-navy: #071629;
+  --betanor-blue: #1359aa;
+  --betanor-electric-blue: #2188ff;
+  --betanor-gold: #c99a2e;
+  --betanor-light-gold: #f3dfaa;
+  --betanor-white: #ffffff;
+  --betanor-surface: #f6f8fb;
+  --betanor-muted: #536174;
+  --betanor-text: #172033;
+  --betanor-border: #dbe2ea;
+  --betanor-success: #16803c;
+  --betanor-warning: #a15d00;
+  --betanor-danger: #bf2639;
+  --background: var(--betanor-surface);
+  --foreground: var(--betanor-text);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
