@@ -2,7 +2,12 @@
 
 ## Status and conventions
 
-No database schema or migrations currently exist. This is a conceptual model only; it authorizes no production tables. All tenant-owned entities have `organization_id`, `id`, `created_at`, `updated_at`, and (where appropriate) `created_by`. Use UUID keys, `timestamptz`, ISO-4217 currency code, and integer minor-unit money fields.
+Implemented in Supabase on 15 September 2026 through the tracked migrations in `supabase/migrations/`:
+
+- `202609150001_initial_betanor_platform.sql` establishes the 58-table platform model.
+- `202609150002_harden_rls_and_foreign_key_indexes.sql` adds explicit deny-by-default operational policies and foreign-key indexes.
+
+The physical model uses `workspaces` as the tenant/company boundary, UUID primary keys, `timestamptz` audit timestamps, ISO-4217 currency codes, and `numeric(14,2)` money values. Every table in the exposed `public` schema has RLS enabled. Operational tables have no client grants and an explicit deny policy until their module-specific permission rules are implemented; service-role server workflows remain the only authorized integration path. Published CMS content is the sole anonymous read surface.
 
 ## Conceptual ERD
 
@@ -70,9 +75,9 @@ erDiagram
 - `expense_request`, `expense_line`, `budget`, `budget_allocation`, `finance_transaction`, `invoice`, `payment`.
 - `audit_event`, `outbox_event`, `notification`, `comment`, `tag`.
 
-## Authoritative domain inventory mapping
+## Implemented domain inventory
 
-The master specification names the intended physical-table inventory. Before Phase 4, normalize this inventory into a migration plan without losing its traceability: Identity (`profiles`, departments, positions, roles, permissions, user-role/department joins); CMS (services, products, categories, brands, media, posts, careers and site settings); CRM (customers, contacts, leads, opportunities, activities, consultations); RFQ/quotation/contract/chat; project/task/communication; HR/leave/payroll/recruitment; KPI/planning/finance; documents; and platform notifications/activity/audit/media/settings. The conceptual ERD above intentionally groups these implementation tables by bounded context.
+The implemented inventory covers identity/RBAC (`profiles`, roles, permissions, user-role joins); HR/recruitment/leave/payroll; strategy, goals, initiatives and KPIs; CRM, consultation and partner enquiries; RFQ, quotations and contracts; projects, milestones, tasks and comments; finance, budgets, expenses, invoices and payments; CMS content; and platform documents, notifications and audit events. The conceptual ERD above groups these implementation tables by bounded context.
 
 Identifiers required by the master specification—`BTNR-CHAT-YYYY-XXXXX`, `BTNR-RFQ-YYYY-XXXXX`, `BTNR-QTN-YYYY-XXXXX`, `BTNR-CTR-YYYY-XXXXX`, `BTNR-EMP-YYYY-XXXXX`, and job application references—should be generated transactionally from organization/year sequences, protected by unique constraints, and never used as the sole authorization secret.
 
