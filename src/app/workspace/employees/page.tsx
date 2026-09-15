@@ -20,9 +20,11 @@ async function createEmployee(data: FormData) {
   const userId = claims?.claims.sub;
   if (!userId) return;
   const { data: profile } = await supabase.from("profiles").select("workspace_id").eq("id", userId).maybeSingle();
-  if (!profile?.workspace_id) return;
+  const { data: fallback } = !profile?.workspace_id ? await supabase.from("workspaces").select("id").limit(1) : { data: [] };
+  const workspaceId = profile?.workspace_id ?? fallback?.[0]?.id;
+  if (!workspaceId) return;
   const { data: employee } = await supabase.from("employees").insert({
-    workspace_id: profile.workspace_id,
+    workspace_id: workspaceId,
     first_name: firstName,
     last_name: lastName,
     work_email: String(data.get("workEmail") ?? "").trim() || null,
@@ -67,11 +69,14 @@ export default async function EmployeesPage() {
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
   const userId = claims?.claims.sub;
-  const { data: profile } = userId ? await supabase.from("profiles").select("workspace_id").eq("id", userId).maybeSingle() : { data: null };
+  const { data: profileData } = userId ? await supabase.from("profiles").select("workspace_id").eq("id", userId).maybeSingle() : { data: null };
+  const { data: fallbackWorkspaces } = !profileData?.workspace_id ? await supabase.from("workspaces").select("id").limit(1) : { data: [] };
+  const profile = profileData?.workspace_id ? profileData : fallbackWorkspaces?.[0] ? { workspace_id: fallbackWorkspaces[0].id } : null;
+  const workspaceId = profile?.workspace_id;
   const [departments, positions, employees] = await Promise.all([
-    profile?.workspace_id ? supabase.from("departments").select("id,name,code").eq("workspace_id", profile.workspace_id).order("name") : Promise.resolve({ data: [] as never[] }),
-    profile?.workspace_id ? supabase.from("positions").select("id,title,code").eq("workspace_id", profile.workspace_id).order("title") : Promise.resolve({ data: [] as never[] }),
-    profile?.workspace_id ? supabase.from("employees").select("id,employee_number,first_name,last_name,work_email,work_phone,hire_date,employment_status,employment_type,probation_end_date,department_id,position_id,manager_id,work_hours_per_day,work_days_per_week,departments(name),positions(title),employment_contracts(id,title,starts_on,ends_on,salary_amount,currency_code,status)").eq("workspace_id", profile.workspace_id).order("hire_date", { ascending: false }) : Promise.resolve({ data: [] as never[] }),
+    workspaceId ? supabase.from("departments").select("id,name,code").eq("workspace_id", workspaceId).order("name") : Promise.resolve({ data: [] as never[] }),
+    workspaceId ? supabase.from("positions").select("id,title,code").eq("workspace_id", workspaceId).order("title") : Promise.resolve({ data: [] as never[] }),
+    workspaceId ? supabase.from("employees").select("id,employee_number,first_name,last_name,work_email,work_phone,hire_date,employment_status,employment_type,probation_end_date,department_id,position_id,manager_id,work_hours_per_day,work_days_per_week,departments(name),positions(title),employment_contracts(id,title,starts_on,ends_on,salary_amount,currency_code,status)").eq("workspace_id", workspaceId).order("hire_date", { ascending: false }) : Promise.resolve({ data: [] as never[] }),
   ]);
   const rows = employees.data ?? [];
   const managerNames = new Map(rows.map((employee) => [employee.id, `${employee.first_name} ${employee.last_name}`]));
