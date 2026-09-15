@@ -45,6 +45,12 @@ The role matrix is a capability summary; its columns are mapped to the master-sp
 - Staff holding `leave.approve` can review and approve/reject submitted leave requests within their authorized workspace. Staff holding `payroll.manage`, `hr.read`, `hr.manage`, or `users.manage` receive only the narrow data reads expressly defined for those capabilities.
 - CRM, commercial, projects, finance, recruitment, documents, audits, and write-capable CMS data remain deny-by-default until their module-specific implementation phase.
 
+### Phase 7 CMS access surface
+
+- `industries`, `services`, `case_studies`, and `insights` now use RLS-backed editorial permissions. Public visitors retain read access only to active/published records.
+- A CMS writer (`cms.write`) can read the editorial collections and create or revise a draft. A CMS publisher (`cms.publish`) can release a record and set its publication time.
+- Every CMS insert and update is recorded in `audit_events` with the actor, entity, action, slug, status, and publication timestamp. The audit trigger has a fixed safe search path and cannot be invoked directly by browser roles.
+
 ## Sensitive-data controls
 
 - Payslips, compensation, bank/tax identifiers, medical/leave detail, candidate attachments, and signed contracts need narrow policies and audit reads.

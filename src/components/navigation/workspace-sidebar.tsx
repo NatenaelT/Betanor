@@ -17,7 +17,7 @@ const sections: NavigationSection[] = [
   { label: "Work", items: [{ label: "Projects" }, { label: "Tasks" }, { label: "My work" }] },
   { label: "People", items: [{ label: "Employees" }, { label: "Leave" }, { label: "Recruitment" }, { label: "KPIs" }] },
   { label: "Finance", items: [{ label: "Finance overview" }, { label: "Expenses" }, { label: "Budgets" }] },
-  { label: "System", items: [{ href: "/workspace/style-guide", label: "Style guide" }] },
+  { label: "System", items: [{ href: "/workspace/cms", label: "Content management" }, { href: "/workspace/style-guide", label: "Style guide" }] },
 ];
 
 function NavigationContents({ close }: { close?: () => void }) {
