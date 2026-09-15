@@ -4,7 +4,7 @@ The operating platform for Betanor General Trading P.L.C.: a public technology-s
 
 ## Current phase
 
-Phase 1 foundation is underway. No business database tables, RLS policies, authentication flow, or production business modules have been implemented.
+Phase 1 foundation is complete. No business database tables, RLS policies, authentication flow, or production business modules have been implemented.
 
 ## Local setup
 
