@@ -1,8 +1,17 @@
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
 
 import { WorkspaceSidebar } from "@/components/navigation/workspace-sidebar";
+import { createClient } from "@/lib/supabase/server";
 
-export default function WorkspaceLayout({ children }: { children: ReactNode }) {
+export default async function WorkspaceLayout({ children }: { children: ReactNode }) {
+  const supabase = await createClient();
+  const {
+    data: jwt,
+  } = await supabase.auth.getClaims();
+
+  if (!jwt?.claims.sub) redirect("/login");
+
   return (
     <div className="flex min-h-screen bg-[var(--betanor-surface)]">
       <WorkspaceSidebar />

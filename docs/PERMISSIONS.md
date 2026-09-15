@@ -8,6 +8,8 @@
 
 Authorization has three layers: Supabase Auth identifies a user; an organization membership assigns one or more roles; PostgreSQL RLS restricts rows by organization and responsibility. Role names below are proposals. Permission grants should be capability-based, with role bundles stored in database configuration or version-controlled seed data.
 
+Phase 5 implements this model with a secure `auth.users → profiles` trigger, 16 seeded system roles, 32 capability records, and database-held role assignments. Identity metadata may set a display name, but never grants a role or permission. The permission helper is in a non-exposed `private` schema, executes with a fixed search path, and is used only by RLS policies.
+
 The role matrix is a capability summary; its columns are mapped to the master-specified role bundles above during Phase 5.
 
 | Capability | Platform Admin | Org Admin | Sales | Delivery | HR | Finance | Strategy | Manager | Employee | Customer |
@@ -34,6 +36,14 @@ The role matrix is a capability summary; its columns are mapped to the master-sp
 5. Customer-portal rows use a separate portal membership/contact mapping and must never receive staff privileges.
 6. Storage buckets use object paths prefixed by organization and policies that mirror document access records.
 7. Service-role access is server-only, logged, and restricted to approved jobs; no browser client gets it.
+
+### Current Phase 5 access surface
+
+- Public visitors can read only published CMS records; operational records remain non-readable.
+- Every authenticated user receives a matching profile automatically, but no workspace placement or role automatically. A trusted administrator must create the employee record and role assignment.
+- Signed-in staff can read their own profile, notifications, employee record, leave requests, and payslips. They can create or revise only their own draft leave request.
+- Staff holding `leave.approve` can review and approve/reject submitted leave requests within their authorized workspace. Staff holding `payroll.manage`, `hr.read`, `hr.manage`, or `users.manage` receive only the narrow data reads expressly defined for those capabilities.
+- CRM, commercial, projects, finance, recruitment, documents, audits, and write-capable CMS data remain deny-by-default until their module-specific implementation phase.
 
 ## Sensitive-data controls
 
