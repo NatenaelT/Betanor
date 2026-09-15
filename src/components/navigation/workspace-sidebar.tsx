@@ -14,7 +14,7 @@ type NavigationSection = { label?: string; items: NavigationItem[] };
 const sections: NavigationSection[] = [
   { items: [{ href: "/workspace", label: "Overview" }] },
   { label: "Sales & clients", items: [{ href: "/workspace/crm", label: "CRM" }, { href: "/workspace/rfqs", label: "RFQs" }, { href: "/workspace/quotations", label: "Quotations" }, { href: "/workspace/contracts", label: "Contracts" }, { href: "/workspace/chats", label: "Chats" }] },
-  { label: "Work", items: [{ href: "/workspace/projects", label: "Projects" }, { label: "Tasks" }, { label: "My work" }] },
+  { label: "Work", items: [{ href: "/workspace/projects", label: "Projects" }, { href: "/workspace/tasks", label: "Tasks" }, { href: "/workspace/my-work", label: "My work" }] },
   { label: "People", items: [{ label: "Employees" }, { label: "Leave" }, { label: "Recruitment" }, { label: "KPIs" }] },
   { label: "Finance", items: [{ label: "Finance overview" }, { label: "Expenses" }, { label: "Budgets" }] },
   { label: "System", items: [{ href: "/workspace/cms", label: "Content management" }, { href: "/workspace/products", label: "Product catalogue" }, { href: "/workspace/style-guide", label: "Style guide" }] },
