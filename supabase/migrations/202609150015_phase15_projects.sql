@@ -1,0 +1,6 @@
+grant select, insert, update on public.projects, public.project_members, public.milestones to authenticated;
+create policy "project staff read" on public.projects for select to authenticated using ((select private.has_permission('project.manage', workspace_id)));
+create policy "project staff create" on public.projects for insert to authenticated with check ((select private.has_permission('project.manage', workspace_id)));
+create policy "project staff update" on public.projects for update to authenticated using ((select private.has_permission('project.manage', workspace_id))) with check ((select private.has_permission('project.manage', workspace_id)));
+create policy "project staff read milestones" on public.milestones for select to authenticated using (exists (select 1 from public.projects where projects.id = milestones.project_id and (select private.has_permission('project.manage', projects.workspace_id))));
+create policy "project staff manage milestones" on public.milestones for all to authenticated using (exists (select 1 from public.projects where projects.id = milestones.project_id and (select private.has_permission('project.manage', projects.workspace_id)))) with check (exists (select 1 from public.projects where projects.id = milestones.project_id and (select private.has_permission('project.manage', projects.workspace_id))));

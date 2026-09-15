@@ -1,0 +1,22 @@
+-- Ethiopia-tailored commercial evidence. VAT remains configurable per quotation;
+-- a quotation is not represented as a fiscal receipt or tax invoice.
+alter table public.workspaces add column if not exists tin text;
+alter table public.workspaces add column if not exists vat_registration_number text;
+alter table public.workspaces add column if not exists registered_address text;
+alter table public.customers add column if not exists tin text;
+alter table public.customers add column if not exists vat_registration_number text;
+alter table public.customers add column if not exists city text;
+alter table public.customers add column if not exists sub_city text;
+alter table public.customers add column if not exists woreda text;
+alter table public.quotations add column if not exists supplier_tin text;
+alter table public.quotations add column if not exists supplier_vat_registration_number text;
+alter table public.quotations add column if not exists customer_tin text;
+alter table public.quotations add column if not exists customer_vat_registration_number text;
+alter table public.quotations add column if not exists vat_rate numeric(7,4) not null default 0 check (vat_rate >= 0 and vat_rate <= 100);
+alter table public.quotations add column if not exists tax_inclusive boolean not null default false;
+alter table public.quotations add column if not exists payment_terms text;
+alter table public.quotations add column if not exists delivery_terms text;
+alter table public.quotations add column if not exists place_of_supply text;
+alter table public.quotations add column if not exists governing_law text not null default 'Federal Democratic Republic of Ethiopia';
+alter table public.quotations add column if not exists client_acceptance_name text;
+alter table public.quotations add column if not exists client_acceptance_timestamp timestamptz;
