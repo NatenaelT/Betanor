@@ -12,7 +12,7 @@ Approve the master specification, tenancy model, roles, brand pack, legal/payrol
 4. Phases 9–14: CRM, RFQ, quotation/versioning/PDF/sharing, chat, contracts.
 5. Phases 15–17: projects, ClickUp-style tasks, internal communications.
 6. Phases 18–21: HR core, leave, recruitment, payroll support after compliance approval.
-7. Phases 22–25: finance, budgets, strategic plans, KPI system.
+7. Phase 18 (current slice): operational finance dashboard, ETB expenses/approvals, budgets, invoices/payments, and Ethiopian VAT/TIN evidence. Follow with income statements, payroll posting, financial results, and strategy/KPI reporting in the later finance phases.
 8. Phases 26–28: document management, reporting, notifications.
 9. Phases 29–32: security hardening, testing, deployment, and production verification.
 
