@@ -14,6 +14,7 @@ export function CustomerAuthForm({ nextPath = "/portal", signUp = false }: { nex
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -39,7 +40,7 @@ export function CustomerAuthForm({ nextPath = "/portal", signUp = false }: { nex
   return <form className="mt-8 space-y-5" onSubmit={submit}>
     {isSignUp ? <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="customer-full-name">Contact name<Input id="customer-full-name" name="fullName" required minLength={2} className="mt-2" /></label> : null}
     <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="customer-email">Email address<Input id="customer-email" name="email" type="email" autoComplete="email" required className="mt-2" /></label>
-    <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="customer-password">Password<Input id="customer-password" name="password" type="password" autoComplete={isSignUp ? "new-password" : "current-password"} minLength={8} required className="mt-2" /></label>
+    <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="customer-password">Password<div className="relative mt-2"><Input id="customer-password" name="password" type={showPassword ? "text" : "password"} autoComplete={isSignUp ? "new-password" : "current-password"} minLength={8} required className="pr-16" /><button type="button" className="absolute inset-y-0 right-0 rounded-r-lg px-3 text-xs font-semibold text-[var(--betanor-blue)] hover:bg-blue-50" onClick={() => setShowPassword((visible) => !visible)} aria-controls="customer-password" aria-pressed={showPassword}>{showPassword ? "Hide" : "Show"}</button></div></label>
     {error ? <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
     {message ? <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm leading-6 text-emerald-900">{message}</p> : null}
     <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? "Please wait…" : isSignUp ? "Create customer account" : "Sign in securely"}</Button>

@@ -15,6 +15,7 @@ export function SignInForm({ nextPath, demoAccounts }: { nextPath: string; demoA
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,7 +47,7 @@ export function SignInForm({ nextPath, demoAccounts }: { nextPath: string; demoA
       </label>
       <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="password">
         Password
-        <Input id="password" name="password" type="password" autoComplete="current-password" required className="mt-2" value={password} onChange={(event) => setPassword(event.target.value)} />
+        <div className="relative mt-2"><Input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required className="pr-16" value={password} onChange={(event) => setPassword(event.target.value)} /><button type="button" className="absolute inset-y-0 right-0 rounded-r-lg px-3 text-xs font-semibold text-[var(--betanor-blue)] hover:bg-blue-50" onClick={() => setShowPassword((visible) => !visible)} aria-controls="password" aria-pressed={showPassword}>{showPassword ? "Hide" : "Show"}</button></div>
       </label>
       {error ? <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
       <Button type="submit" className="w-full" disabled={isSubmitting}>
