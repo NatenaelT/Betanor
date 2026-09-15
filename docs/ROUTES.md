@@ -18,3 +18,5 @@ No routes currently exist. Route names are proposed App Router paths derived fro
 | Administration | `/workspace/admin/users`, `/workspace/admin/roles`, `/workspace/admin/departments`, `/workspace/admin/workflows`, `/workspace/admin/settings`, `/workspace/admin/audit-logs` | administrators |
 
 Route access is a usability guard only. Each loader, action, API endpoint, and database query must independently authorize access.
+
+Phase 8 implements `/workspace/products` as a protected catalogue console and turns `/products` into a dynamic public catalogue reading only published product records.

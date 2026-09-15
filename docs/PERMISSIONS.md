@@ -51,6 +51,12 @@ The role matrix is a capability summary; its columns are mapped to the master-sp
 - A CMS writer (`cms.write`) can read the editorial collections and create or revise a draft. A CMS publisher (`cms.publish`) can release a record and set its publication time.
 - Every CMS insert and update is recorded in `audit_events` with the actor, entity, action, slug, status, and publication timestamp. The audit trigger has a fixed safe search path and cannot be invoked directly by browser roles.
 
+### Phase 8 catalogue access surface
+
+- `product_categories` and `products` follow the same `cms.read`, `cms.write`, and `cms.publish` access model as the Phase 7 editorial collections. This avoids duplicate role assignments and lets a later catalogue-specific role be added only if the business requires it.
+- Category and product writers can create and revise drafts; publishers control release. Public callers can select only active records with a publication timestamp.
+- Catalogue writes use the protected CMS audit function and have no browser delete permission, preserving a traceable commercial catalogue history.
+
 ## Sensitive-data controls
 
 - Payslips, compensation, bank/tax identifiers, medical/leave detail, candidate attachments, and signed contracts need narrow policies and audit reads.
