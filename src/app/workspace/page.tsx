@@ -1,11 +1,41 @@
-export default function WorkspacePage() {
-  return (
-    <main className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
-      <p className="text-sm font-semibold tracking-[0.14em] text-[var(--betanor-blue)] uppercase">Internal workspace</p>
-      <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--betanor-navy)]">Welcome to the Betanor workspace.</h1>
-      <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--betanor-muted)]">
-        Your secured workspace shell is ready. Use the navigation, search, notifications, and profile menu to move through the platform as modules become available.
-      </p>
-    </main>
-  );
+import Link from "next/link";
+
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { formatEtb } from "@/lib/finance";
+import { createClient } from "@/lib/supabase/server";
+import { resolveWorkspace } from "@/lib/workspace-context";
+
+export const dynamic = "force-dynamic";
+type Tile = { label: string; value: string; detail: string; href: string; tone?: "info" | "success" | "warning" | "neutral" };
+
+export default async function WorkspacePage() {
+  const supabase = await createClient();
+  const access = await resolveWorkspace(supabase);
+  if (!access.userId) return null;
+  const permissions = access.permissions;
+  const [{ data: profile }, { data: assignments }] = await Promise.all([
+    supabase.from("profiles").select("full_name,job_title").eq("id", access.userId).maybeSingle(),
+    supabase.from("user_roles").select("roles(code,name)").eq("user_id", access.userId),
+  ]);
+  const roleNames = (assignments ?? []).map((row) => { const role = Array.isArray(row.roles) ? row.roles[0] : row.roles; return role?.name; }).filter(Boolean) as string[];
+  const tiles: Tile[] = [];
+  const reads: Array<Promise<void>> = [];
+  if (permissions.has("users.manage") && access.workspaceId) reads.push((async () => { const { count } = await supabase.from("profiles").select("id", { count: "exact", head: true }).eq("workspace_id", access.workspaceId); tiles.push({ label: "Active staff profiles", value: String(count ?? 0), detail: "Manage users & access", href: "/workspace/admin/users", tone: "info" }); })());
+  if ((permissions.has("hr.read") || permissions.has("hr.manage")) && access.workspaceId) reads.push((async () => { const { count } = await supabase.from("employees").select("id", { count: "exact", head: true }).eq("workspace_id", access.workspaceId).eq("employment_status", "active"); tiles.push({ label: "Active employees", value: String(count ?? 0), detail: "People directory", href: "/workspace/employees", tone: "success" }); })());
+  if (permissions.has("leave.approve") || permissions.has("leave.request")) reads.push((async () => { const { count } = await supabase.from("leave_requests").select("id", { count: "exact", head: true }).in("status", ["submitted", "in_review"]); tiles.push({ label: "Leave queue", value: String(count ?? 0), detail: permissions.has("leave.approve") ? "Awaiting decisions" : "Your requests", href: "/workspace/leave", tone: "warning" }); })());
+  if (permissions.has("recruitment.manage") && access.workspaceId) reads.push((async () => { const { count } = await supabase.from("job_applications").select("id", { count: "exact", head: true }).in("stage", ["applied", "screening", "shortlisted"]); tiles.push({ label: "Open candidates", value: String(count ?? 0), detail: "Recruitment pipeline", href: "/workspace/recruitment", tone: "info" }); })());
+  if (permissions.has("payroll.manage") && access.workspaceId) reads.push((async () => { const { count } = await supabase.from("payroll_cycles").select("id", { count: "exact", head: true }).eq("workspace_id", access.workspaceId).eq("status", "draft"); tiles.push({ label: "Draft payroll cycles", value: String(count ?? 0), detail: "Review & publish payslips", href: "/workspace/payslips", tone: "warning" }); })());
+  if (permissions.has("payroll.read_self") && !permissions.has("payroll.manage")) reads.push((async () => { const { count } = await supabase.from("payslips").select("id", { count: "exact", head: true }); tiles.push({ label: "Available payslips", value: String(count ?? 0), detail: "Your approved salary records", href: "/workspace/payslips", tone: "success" }); })());
+  if (permissions.has("finance.read") && access.workspaceId) reads.push((async () => { const { data } = await supabase.from("invoices").select("total_amount").eq("workspace_id", access.workspaceId).limit(100); const total = (data ?? []).reduce((sum, row) => sum + Number(row.total_amount ?? 0), 0); tiles.push({ label: "Invoice book", value: formatEtb(total), detail: `${data?.length ?? 0} receivable records`, href: "/workspace/finance", tone: "info" }); })());
+  if (permissions.has("project.manage") && access.workspaceId) reads.push((async () => { const { count } = await supabase.from("projects").select("id", { count: "exact", head: true }).eq("workspace_id", access.workspaceId).not("status", "in", "(completed,cancelled)"); tiles.push({ label: "Live projects", value: String(count ?? 0), detail: "Delivery portfolio", href: "/workspace/projects", tone: "success" }); })());
+  if (permissions.has("crm.read") && access.workspaceId) reads.push((async () => { const { count } = await supabase.from("leads").select("id", { count: "exact", head: true }).eq("workspace_id", access.workspaceId); tiles.push({ label: "CRM leads", value: String(count ?? 0), detail: "Commercial pipeline", href: "/workspace/crm", tone: "info" }); })());
+  await Promise.all(reads);
+  tiles.sort((a, b) => a.label.localeCompare(b.label));
+  const displayName = profile?.full_name || "Betanor colleague";
+  const primaryRole = roleNames[0] || "Authorized staff";
+  return <main className="mx-auto max-w-7xl px-5 py-8 sm:px-6 lg:px-8 lg:py-10"><div className="flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><p className="text-sm font-semibold tracking-[0.14em] text-[var(--betanor-blue)] uppercase">Personal workspace</p><h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--betanor-navy)]">Good morning, {displayName}.</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--betanor-muted)]">Your {primaryRole.toLowerCase()} view is focused on the records and decisions your role is authorized to see.</p></div><div className="flex flex-wrap gap-2"><Badge tone="info">{primaryRole}</Badge>{access.workspace ? <Badge tone="neutral">{access.workspace.name}</Badge> : null}</div></div>{tiles.length ? <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{tiles.map((tile) => <Link key={tile.label} href={tile.href} className="group"><Card className="h-full p-5 transition hover:-translate-y-0.5 hover:border-[var(--betanor-blue)]"><div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold tracking-[0.12em] text-[var(--betanor-muted)] uppercase">{tile.label}</p><span className={`size-2 rounded-full ${tile.tone === "warning" ? "bg-amber-400" : tile.tone === "success" ? "bg-emerald-500" : tile.tone === "info" ? "bg-blue-500" : "bg-slate-400"}`} /></div><p className="mt-3 text-2xl font-semibold tracking-tight text-[var(--betanor-navy)]">{tile.value}</p><p className="mt-2 text-xs text-[var(--betanor-muted)] group-hover:text-[var(--betanor-blue)]">{tile.detail} →</p></Card></Link>)}</div> : <Card className="mt-8 p-6"><h2 className="text-lg font-semibold text-[var(--betanor-navy)]">Your workspace is ready</h2><p className="mt-2 text-sm leading-6 text-[var(--betanor-muted)]">An administrator has not assigned a module permission yet. Ask for the access appropriate to your responsibilities.</p></Card>}<div className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_.9fr]"><Card className="p-5 sm:p-6"><h2 className="font-semibold text-[var(--betanor-navy)]">Role-aware operating model</h2><div className="mt-4 grid gap-3 sm:grid-cols-2"><AccessRow label="Commercial" enabled={permissions.has("crm.read")} href="/workspace/crm" /><AccessRow label="Delivery" enabled={permissions.has("project.manage") || permissions.has("task.edit")} href="/workspace/projects" /><AccessRow label="People" enabled={permissions.has("hr.read") || permissions.has("leave.request")} href="/workspace/employees" /><AccessRow label="Finance" enabled={permissions.has("finance.read")} href="/workspace/finance" /></div></Card><Card className="border-blue-100 bg-blue-50/50 p-5 sm:p-6"><h2 className="font-semibold text-[var(--betanor-navy)]">Quick actions</h2><div className="mt-4 space-y-2"><QuickAction label="Request leave" href="/workspace/leave" enabled={permissions.has("leave.request")} /><QuickAction label="Open my work" href="/workspace/my-work" enabled={permissions.has("task.edit") || permissions.has("kpi.read_self")} /><QuickAction label="Manage users" href="/workspace/admin/users" enabled={permissions.has("users.manage")} /><QuickAction label="Configure workspace" href="/workspace/admin/settings" enabled={permissions.has("settings.manage")} /></div></Card></div></main>;
 }
+
+function AccessRow({ label, enabled, href }: { label: string; enabled: boolean; href: string }) { return enabled ? <Link href={href} className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3 text-sm font-semibold text-[var(--betanor-navy)] hover:bg-blue-50"><span>{label}</span><span className="text-[var(--betanor-blue)]">Open →</span></Link> : <div className="flex items-center justify-between rounded-lg border border-dashed border-[var(--betanor-border)] px-4 py-3 text-sm text-[var(--betanor-muted)]"><span>{label}</span><span>Not assigned</span></div>; }
+function QuickAction({ label, href, enabled }: { label: string; href: string; enabled: boolean }) { return enabled ? <Link href={href} className="block rounded-lg bg-white px-4 py-3 text-sm font-semibold text-[var(--betanor-navy)] shadow-sm hover:text-[var(--betanor-blue)]">{label} →</Link> : null; }

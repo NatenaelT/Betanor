@@ -1,0 +1,12 @@
+-- Seed the public catalogue with Betanor's current service lines. Editors can
+-- refine, publish, or archive these records from the workspace CMS.
+insert into public.services (title, slug, excerpt, content, status, published_at)
+values
+  ('Software & digital solutions consulting','software-digital-solutions-consulting','Architecture, requirements analysis, UI/UX, data modelling, APIs, interoperability, technical documentation, and security review.','Betanor helps organizations turn operational needs into secure, maintainable digital solutions.', 'active', now()),
+  ('Software development & implementation','software-development-implementation','Custom applications, enterprise systems, dashboards, workflows, integrations, migration, testing, deployment, and support.','From discovery to deployment, Betanor builds and implements software that fits the client environment.', 'active', now()),
+  ('IT infrastructure & data center','it-infrastructure-data-center','Network design, Wi-Fi, servers, storage, virtualization, firewalls, backup, disaster recovery, cabling, and documentation.','Plan and operate dependable infrastructure with practical documentation and continuity controls.', 'active', now()),
+  ('Managed IT support','managed-it-support','Onsite and remote support, administration, monitoring, maintenance, incident escalation, and reporting.','Responsive support for the systems people rely on every working day.', 'active', now()),
+  ('Maintenance & technical services','maintenance-technical-services','Preventive and corrective support for end-user devices, servers, networks, printers, and hardware.','Keep technology reliable with preventive maintenance, corrective intervention, and clear reporting.', 'active', now()),
+  ('Training & capacity building','training-capacity-building','Administrator and end-user training, workshops, manuals, and post-training support.','Transfer knowledge so client teams can operate, maintain, and improve their technology environment.', 'active', now()),
+  ('Security & surveillance','security-surveillance','CCTV, access control, biometric systems, electronic locks, installation, configuration, and maintenance.','Design and support integrated security and surveillance solutions for business environments.', 'active', now())
+on conflict (slug) do update set title = excluded.title, excerpt = excluded.excerpt, content = excluded.content, status = excluded.status, published_at = excluded.published_at;

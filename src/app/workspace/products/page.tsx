@@ -55,6 +55,14 @@ async function publishCatalogueItem(table: "product_categories" | "products", id
   revalidatePath("/products");
 }
 
+async function archiveCatalogueItem(table: "product_categories" | "products", id: string) {
+  "use server";
+  const supabase = await createClient();
+  await supabase.from(table).update({ status: "archived", published_at: null }).eq("id", id);
+  revalidatePath("/workspace/products");
+  revalidatePath("/products");
+}
+
 export default async function ProductCataloguePage() {
   const supabase = await createClient();
   const [categories, products] = await Promise.all([
@@ -76,5 +84,5 @@ export default async function ProductCataloguePage() {
 }
 
 function CatalogueCollection({ label, rows, table }: { label: string; rows: Array<{ id: string; name: string; slug: string; status: string; published_at: string | null; sku?: string | null; brand?: string | null; model?: string | null; product_categories?: Array<{ name: string }> | null }>; table: "product_categories" | "products" }) {
-  return <Card className="overflow-hidden"><div className="flex items-center justify-between border-b border-[var(--betanor-border)] px-5 py-4"><h2 className="font-semibold text-[var(--betanor-navy)]">{label}</h2><span className="text-sm text-[var(--betanor-muted)]">{rows.length}</span></div>{rows.length ? <ul className="divide-y divide-[var(--betanor-border)]">{rows.map((row) => <li key={row.id} className="flex items-center justify-between gap-3 px-5 py-4"><div className="min-w-0"><p className="truncate text-sm font-semibold text-[var(--betanor-navy)]">{row.name}</p><p className="mt-1 truncate text-xs text-[var(--betanor-muted)]">{row.brand ? `${row.brand}${row.model ? ` · ${row.model}` : ""} · ` : ""}/{row.slug}{row.product_categories?.[0]?.name ? ` · ${row.product_categories[0].name}` : ""}</p></div><div className="flex shrink-0 items-center gap-2"><Badge tone={row.status === "active" ? "success" : "draft"}>{row.status}</Badge>{row.status !== "active" ? <form action={publishCatalogueItem.bind(null, table, row.id)}><Button type="submit" size="sm">Publish</Button></form> : null}</div></li>)}</ul> : <p className="px-5 py-8 text-sm text-[var(--betanor-muted)]">No {label.toLowerCase()} have been created.</p>}</Card>;
+  return <Card className="overflow-hidden"><div className="flex items-center justify-between border-b border-[var(--betanor-border)] px-5 py-4"><h2 className="font-semibold text-[var(--betanor-navy)]">{label}</h2><span className="text-sm text-[var(--betanor-muted)]">{rows.length}</span></div>{rows.length ? <ul className="divide-y divide-[var(--betanor-border)]">{rows.map((row) => <li key={row.id} className="flex items-center justify-between gap-3 px-5 py-4"><div className="min-w-0"><p className="truncate text-sm font-semibold text-[var(--betanor-navy)]">{row.name}</p><p className="mt-1 truncate text-xs text-[var(--betanor-muted)]">{row.brand ? `${row.brand}${row.model ? ` · ${row.model}` : ""} · ` : ""}/{row.slug}{row.product_categories?.[0]?.name ? ` · ${row.product_categories[0].name}` : ""}</p></div><div className="flex shrink-0 items-center gap-2"><Badge tone={row.status === "active" ? "success" : "draft"}>{row.status}</Badge>{row.status !== "active" ? <form action={publishCatalogueItem.bind(null, table, row.id)}><Button type="submit" size="sm">Publish</Button></form> : null}{row.status !== "archived" ? <form action={archiveCatalogueItem.bind(null, table, row.id)}><Button type="submit" size="sm" variant="outline">Archive</Button></form> : null}</div></li>)}</ul> : <p className="px-5 py-8 text-sm text-[var(--betanor-muted)]">No {label.toLowerCase()} have been created.</p>}</Card>;
 }
