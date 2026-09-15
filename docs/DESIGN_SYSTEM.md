@@ -12,6 +12,21 @@ The master specification prescribes Deep Navy/Blue, Gold, White, electric-blue a
 - Build reusable primitives for status badges, money/date fields, entity links, document version indicators, approval cards, audit timelines, empty/error states, and permission-denied states.
 - Separate public RFQ/customer-portal experience from the staff workspace while retaining shared brand tokens.
 
+## Phase 2 implemented foundation
+
+The current implementation centralizes the initial palette in `src/app/globals.css` and provides framework-agnostic, Tailwind-based primitives in `src/components/ui`:
+
+- `Button`: primary, gold, outline, ghost, and destructive variants; small, medium, and large sizes; visible keyboard focus and disabled state.
+- `Card`: a standard operational surface with header/content regions.
+- `Input`, `FieldLabel`, and `FieldHint`: labelled, focus-visible form controls and consistent help text.
+- `Badge`: neutral, draft, review, success, warning, and danger states.
+- `TableWrap` and `Table`: responsive horizontal table containment for data-dense workspace screens.
+- `Drawer`: an escape-dismissible, overlay-dismissible mobile navigation shell. It is used by the workspace navigation, while desktop retains the persistent sidebar.
+
+`/workspace/style-guide` is an internal visual reference for these primitives. It contains illustrative data only and is not a product module. Screens added in later phases should compose these primitives rather than duplicate their visual states.
+
+The current `BetanorMark` is deliberately a provisional text mark. Replace it with the supplied, approved SVG logo and approved letterhead assets before public launch; do not treat its form, typography, or colors as final brand artwork.
+
 ## Brand intake required
 
 Obtain source logo variants (SVG preferred), letterhead, brand guide, approved colors/fonts, imagery policy, and document/PDF examples. Record asset provenance and licenses. Do not extract a logo from low-resolution letterhead if a vector master is available.
