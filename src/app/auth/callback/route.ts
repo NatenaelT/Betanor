@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 function safeNextPath(next: string | null) {
-  return next?.startsWith("/workspace") ? next : "/workspace";
+  return next?.startsWith("/workspace") || next?.startsWith("/portal") || next?.startsWith("/customer/onboard") || next?.startsWith("/rfq") ? next : "/workspace";
 }
 
 export async function GET(request: NextRequest) {
