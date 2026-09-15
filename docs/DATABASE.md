@@ -4,8 +4,9 @@
 
 Implemented in Supabase on 15 September 2026 through the tracked migrations in `supabase/migrations/`:
 
-- `202609150001_initial_betanor_platform.sql` establishes the 58-table platform model.
+- `202609150001_initial_betanor_platform.sql` establishes the core platform model.
 - `202609150002_harden_rls_and_foreign_key_indexes.sql` adds explicit deny-by-default operational policies and foreign-key indexes.
+- `202609150003_add_workflow_supporting_domains.sql` adds opportunities, public chat, reusable approvals, document links, vendors, positions, and calendar events.
 
 The physical model uses `workspaces` as the tenant/company boundary, UUID primary keys, `timestamptz` audit timestamps, ISO-4217 currency codes, and `numeric(14,2)` money values. Every table in the exposed `public` schema has RLS enabled. Operational tables have no client grants and an explicit deny policy until their module-specific permission rules are implemented; service-role server workflows remain the only authorized integration path. Published CMS content is the sole anonymous read surface.
 
