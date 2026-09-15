@@ -1,6 +1,6 @@
 # Proposed Route Map
 
-No routes currently exist. Route names are proposed App Router paths derived from the master specification.
+The route map below records the target App Router surface. Public and core workspace routes marked as implemented are live; remaining routes stay planned until their module phase is approved.
 
 | Area | Proposed paths | Access |
 |---|---|---|
@@ -10,7 +10,7 @@ No routes currently exist. Route names are proposed App Router paths derived fro
 | Customer portal | `/portal`, `/portal/rfqs`, `/portal/quotations/[id]`, `/portal/contracts/[id]`, `/portal/projects/[id]` | mapped customer contact |
 | Workspace | `/workspace`, `/workspace/inbox`, `/workspace/search`, `/workspace/calendar` | staff |
 | CRM & sales | `/workspace/customers`, `/workspace/leads`, `/workspace/rfqs`, `/workspace/quotations`, `/workspace/contracts`, `/workspace/chat` | sales/scoped staff |
-| Delivery | `/workspace/projects`, `/workspace/tasks`, `/workspace/my-work` | delivery/scoped staff |
+| Delivery | `/workspace/projects`, `/workspace/projects/[id]`, `/workspace/tasks`, `/workspace/tasks/[id]`, `/workspace/my-work` | delivery/scoped staff (implemented) |
 | HR | `/workspace/recruitment`, `/workspace/jobs`, `/workspace/employees`, `/workspace/leave`, `/workspace/payslips` | HR/scoped staff |
 | Finance | `/workspace/finance`, `/workspace/income`, `/workspace/expenses`, `/workspace/receivables`, `/workspace/payables`, `/workspace/budgets` | finance/scoped staff |
 | Strategy | `/workspace/annual-plan`, `/workspace/goals`, `/workspace/kpis`, `/workspace/reports` | management/scoped staff |
