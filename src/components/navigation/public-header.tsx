@@ -7,7 +7,7 @@ import { BetanorMark } from "@/components/brand/betanor-mark";
 
 export function PublicHeader() {
   const [isOpen, setIsOpen] = useState(false);
-  const links = [["Services", "/services"], ["Products", "/products"], ["Solutions", "/projects"], ["Industries", "/industries"], ["Company", "/about"], ["Partner", "/partner"]] as const;
+  const links = [["Services", "/services"], ["Products", "/products"], ["Solutions", "/projects"], ["Industries", "/industries"], ["Company", "/about"], ["Partner", "/partner"], ["RFQ", "/rfq"]] as const;
 
   return (
     <header className="relative border-b border-[var(--betanor-border)] bg-white shadow-[0_1px_0_rgba(18,53,107,0.03)]">

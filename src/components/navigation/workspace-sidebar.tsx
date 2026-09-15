@@ -13,7 +13,7 @@ type NavigationSection = { label?: string; items: NavigationItem[] };
 
 const sections: NavigationSection[] = [
   { items: [{ href: "/workspace", label: "Overview" }] },
-  { label: "Sales & clients", items: [{ label: "CRM" }, { label: "RFQs" }, { label: "Quotations" }, { label: "Contracts" }, { label: "Chats" }] },
+  { label: "Sales & clients", items: [{ href: "/workspace/crm", label: "CRM" }, { href: "/workspace/rfqs", label: "RFQs" }, { href: "/workspace/quotations", label: "Quotations" }, { label: "Contracts" }, { label: "Chats" }] },
   { label: "Work", items: [{ label: "Projects" }, { label: "Tasks" }, { label: "My work" }] },
   { label: "People", items: [{ label: "Employees" }, { label: "Leave" }, { label: "Recruitment" }, { label: "KPIs" }] },
   { label: "Finance", items: [{ label: "Finance overview" }, { label: "Expenses" }, { label: "Budgets" }] },
