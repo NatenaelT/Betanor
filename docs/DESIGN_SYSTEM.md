@@ -25,7 +25,7 @@ The current implementation centralizes the initial palette in `src/app/globals.c
 
 `/workspace/style-guide` is an internal visual reference for these primitives. It contains illustrative data only and is not a product module. Screens added in later phases should compose these primitives rather than duplicate their visual states.
 
-The current `BetanorMark` is deliberately a provisional text mark. Replace it with the supplied, approved SVG logo and approved letterhead assets before public launch; do not treat its form, typography, or colors as final brand artwork.
+The approved `Betanor Logo_V1.0.png` is now used by `BetanorMark` in the public and workspace navigation. It is stored as `public/betanor-logo-v1.png` without modification. Obtain an approved SVG or reversed logo variant before any high-resolution print use or dark-background treatment where the white PNG canvas would be unsuitable.
 
 ## Brand intake required
 

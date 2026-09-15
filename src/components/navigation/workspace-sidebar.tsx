@@ -17,7 +17,7 @@ const sections = [
 function NavigationContents({ close }: { close?: () => void }) {
   return <>
     <Link href="/workspace" className="mb-9 flex items-center gap-3" onClick={close}>
-      <BetanorMark className="flex items-center gap-3 [&_span:first-child]:bg-[var(--betanor-gold)] [&_span:first-child]:text-[var(--betanor-navy)] [&_span:nth-child(2)>span:first-child]:text-white [&_span:nth-child(2)>span:last-child]:text-slate-400" />
+      <BetanorMark className="flex items-center gap-3" dark />
     </Link>
     <nav aria-label="Workspace navigation" className="space-y-7">
       {sections.map(([label, ...items]) => (

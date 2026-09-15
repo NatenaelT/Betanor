@@ -1,16 +1,17 @@
+import Image from "next/image";
 import type { HTMLAttributes } from "react";
 
-export function BetanorMark({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+import { cn } from "@/lib/utils";
+
+export function BetanorMark({ className, dark = false, ...props }: HTMLAttributes<HTMLDivElement> & { dark?: boolean }) {
   return (
     <div className={className} {...props}>
-      <span className="grid size-9 place-items-center rounded-lg bg-[var(--betanor-navy)] text-lg font-bold text-white shadow-sm">
-        B
-      </span>
+      <Image alt="Betanor" className="size-11 rounded-lg object-contain" height={1254} priority src="/betanor-logo-v1.png" width={1254} />
       <span className="leading-none">
-        <span className="block text-sm font-bold tracking-[0.14em] text-[var(--betanor-navy)]">
+        <span className={cn("block text-sm font-bold tracking-[0.14em]", dark ? "text-white" : "text-[var(--betanor-navy)]")}>
           BETANOR
         </span>
-        <span className="block pt-1 text-[10px] font-medium tracking-[0.06em] text-[var(--betanor-muted)]">
+        <span className={cn("block pt-1 text-[10px] font-medium tracking-[0.06em]", dark ? "text-slate-400" : "text-[var(--betanor-muted)]")}>
           ALWAYS WELCOME, ALWAYS READY.
         </span>
       </span>
