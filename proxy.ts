@@ -21,5 +21,10 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/workspace/:path*"],
+  // Refresh Supabase cookies on every application route so moving between the
+  // public website, customer portal, and staff workspace never drops a valid
+  // session. Static assets are excluded to avoid needless auth work.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+  ],
 };
