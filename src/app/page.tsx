@@ -1,26 +1,16 @@
+import Link from "next/link";
+
+import { ContentCard, ContentGrid } from "@/components/public/content-grid";
 import { PublicHeader } from "@/components/navigation/public-header";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
+const services = ["Digital solutions consulting", "Software development & implementation", "IT infrastructure & data center", "Managed IT support", "Security & surveillance", "Training & capacity building"];
 
 export default function Home() {
-  return (
-    <div className="min-h-screen bg-[var(--betanor-surface)]">
-      <PublicHeader />
-      <main className="grid place-items-center px-6 py-16 sm:py-24">
-        <section className="w-full max-w-2xl rounded-2xl border border-[var(--betanor-border)] bg-white p-8 shadow-sm sm:p-12">
-          <p className="mb-4 text-sm font-semibold tracking-[0.18em] text-[var(--betanor-blue)] uppercase">
-            Betanor General Trading P.L.C.
-          </p>
-          <h1 className="text-4xl font-semibold tracking-tight text-[var(--betanor-navy)] sm:text-5xl">
-            Technology You Can Rely On.
-          </h1>
-          <p className="mt-6 max-w-xl text-lg leading-8 text-[var(--betanor-muted)]">
-            The Betanor Digital Business Platform foundation is in progress. Public
-            experiences and the internal workspace will be introduced in planned phases.
-          </p>
-          <div className="mt-8 border-l-4 border-[var(--betanor-gold)] pl-4 text-sm text-[var(--betanor-muted)]">
-            Phase 1: application foundation, environment safety, and Supabase client boundaries.
-          </div>
-        </section>
-      </main>
-    </div>
-  );
+  return <><PublicHeader /><main>
+    <section className="overflow-hidden bg-[var(--betanor-dark-navy)] px-6 py-18 text-white lg:px-8 lg:py-24"><div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.15fr_0.85fr]"><div><p className="text-sm font-semibold tracking-[0.14em] text-[var(--betanor-light-gold)] uppercase">Betanor General Trading P.L.C.</p><h1 className="mt-5 max-w-3xl text-5xl font-semibold tracking-tight sm:text-6xl">Technology You Can Rely On.</h1><p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">Technology consulting, software development, IT infrastructure, managed support, security systems, professional products, implementation, training, maintenance, and long-term technical support.</p><div className="mt-8 flex flex-wrap gap-3"><Link href="/projects"><Button>Explore solutions</Button></Link><Link href="/contact"><Button variant="outline" className="border-white/35 bg-transparent text-white hover:bg-white/10 hover:text-white">Request consultation</Button></Link></div></div><div className="relative min-h-72 rounded-2xl border border-white/15 bg-gradient-to-br from-[var(--betanor-blue)] via-[var(--betanor-navy)] to-[var(--betanor-dark-navy)] p-7 shadow-2xl"><div className="absolute top-7 right-7 size-20 rounded-2xl border border-[var(--betanor-gold)]/70 bg-[var(--betanor-gold)]/15"/><div className="absolute right-16 bottom-9 size-12 rounded-lg bg-[var(--betanor-electric-blue)]/35"/><div className="absolute bottom-7 left-7 max-w-65"><p className="text-xs font-semibold tracking-[0.14em] text-[var(--betanor-light-gold)] uppercase">Built for continuity</p><p className="mt-3 text-xl font-semibold">Practical technology, accountable delivery.</p></div></div></div></section>
+    <section className="bg-white"><div className="mx-auto max-w-7xl px-6 py-14 lg:px-8"><div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="text-sm font-semibold tracking-[0.14em] text-[var(--betanor-blue)] uppercase">What we do</p><h2 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--betanor-navy)]">Solutions that connect strategy to reliable operations.</h2></div><Link className="text-sm font-semibold text-[var(--betanor-blue)]" href="/services">View all services →</Link></div></div><ContentGrid>{services.map((service) => <ContentCard key={service} title={service}>Focused expertise from discovery and architecture through implementation, support, and measurable improvement.</ContentCard>)}</ContentGrid></section>
+    <section className="bg-[var(--betanor-surface)] px-6 py-14 lg:px-8"><div className="mx-auto grid max-w-7xl gap-8 rounded-2xl bg-white p-8 shadow-[var(--betanor-shadow-card)] lg:grid-cols-[1fr_auto] lg:items-center"><div><Badge tone="draft">Start a conversation</Badge><h2 className="mt-4 text-3xl font-semibold tracking-tight text-[var(--betanor-navy)]">Planning a technology project?</h2><p className="mt-3 max-w-2xl leading-7 text-[var(--betanor-muted)]">Tell us about your organization, priorities, and timeline. Our public quotation workflow will be introduced in the next delivery phases.</p></div><Link href="/contact#quote"><Button size="lg">Request a quote</Button></Link></div></section>
+  </main></>;
 }

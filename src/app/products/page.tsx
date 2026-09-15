@@ -1,0 +1,5 @@
+import { ContentCard, ContentGrid } from "@/components/public/content-grid";
+import { PageHero } from "@/components/public/page-hero";
+import { PublicHeader } from "@/components/navigation/public-header";
+const items = ["Computing", "Servers & infrastructure", "Computer components", "Accessories & peripherals", "Printing & office technology", "Security & access control", "Digital display solutions", "Professional video & media equipment"];
+export default function ProductsPage() { return <><PublicHeader /><main><PageHero eyebrow="Products" title="Professional technology products, selected for the work ahead.">Our catalogue will support request-quote purchasing rather than e-commerce, with products and specifications published as they are verified.</PageHero><ContentGrid>{items.map((title) => <ContentCard key={title} title={title}>Request-quote catalogue category. Product availability, warranty, and technical specifications will be added through the content workflow.</ContentCard>)}</ContentGrid></main></>; }

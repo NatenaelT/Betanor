@@ -1,0 +1,5 @@
+import { ContentCard, ContentGrid } from "@/components/public/content-grid";
+import { PageHero } from "@/components/public/page-hero";
+import { PublicHeader } from "@/components/navigation/public-header";
+
+export default function AboutPage() { return <><PublicHeader /><main><PageHero eyebrow="Company" title="A dependable partner for complex technology work.">Betanor brings consulting discipline, practical implementation, and long-term technical support together for organizations that need technology to perform in the real world.</PageHero><ContentGrid><ContentCard title="Consult with clarity">We translate operational needs into well-defined technology decisions, documentation, and delivery plans.</ContentCard><ContentCard title="Implement with care">Our work covers software, infrastructure, security, products, and the integration points between them.</ContentCard><ContentCard title="Support for the long term">We stay focused on maintainability, continuity, user capability, and accountable technical support.</ContentCard></ContentGrid></main></>; }

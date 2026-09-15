@@ -1,0 +1,5 @@
+import { ContentCard, ContentGrid } from "@/components/public/content-grid";
+import { PageHero } from "@/components/public/page-hero";
+import { PublicHeader } from "@/components/navigation/public-header";
+const projects = [["Digital operations", "Custom software, business workflows, dashboards, integrations, and sustainable support."], ["Connected infrastructure", "Network, server, storage, wireless, backup, and security foundations that support daily work."], ["Security & access", "Surveillance, access control, biometric attendance, and operational visibility."], ["Technical capability", "Training, documentation, handover, and a support model that strengthens internal teams."]];
+export default function ProjectsPage() { return <><PublicHeader /><main><PageHero eyebrow="Solutions / projects" title="From a defined need to a supported operational result.">Published case studies will be added after client approval. These solution areas describe the work Betanor is structured to deliver.</PageHero><ContentGrid>{projects.map(([title, body]) => <ContentCard key={title} title={title}>{body}</ContentCard>)}</ContentGrid></main></>; }
