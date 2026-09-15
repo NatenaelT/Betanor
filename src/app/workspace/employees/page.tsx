@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldLabel, Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/server";
+import { resolveWorkspace } from "@/lib/workspace-context";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,8 @@ async function createEmployee(data: FormData) {
   const { data: claims } = await supabase.auth.getClaims();
   const userId = claims?.claims.sub;
   if (!userId) return;
+  const access = await resolveWorkspace(supabase);
+  if (!access.permissions.has("hr.manage")) return;
   const { data: profile } = await supabase.from("profiles").select("workspace_id").eq("id", userId).maybeSingle();
   const { data: fallback } = !profile?.workspace_id ? await supabase.from("workspaces").select("id").limit(1) : { data: [] };
   const workspaceId = profile?.workspace_id ?? fallback?.[0]?.id;
