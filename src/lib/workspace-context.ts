@@ -11,5 +11,18 @@ export async function resolveWorkspace(supabase: SupabaseClient) {
     : supabase.from("workspaces").select("id,name,currency_code,tin,vat_registration_number,registered_address").limit(1).maybeSingle();
   const { data: workspace } = await workspaceQuery;
   const workspaceId = workspace?.id ?? null;
-  return { userId, workspaceId, workspace };
+  const permissions = new Set<string>();
+  if (userId) {
+    const { data: roleRows } = await supabase.from("user_roles").select("role_id").eq("user_id", userId);
+    const roleIds = (roleRows ?? []).map((row) => row.role_id).filter(Boolean);
+    if (roleIds.length) {
+      const { data: rolePermissionRows } = await supabase.from("role_permissions").select("permission_id").in("role_id", roleIds);
+      const permissionIds = (rolePermissionRows ?? []).map((row) => row.permission_id).filter(Boolean);
+      if (permissionIds.length) {
+        const { data: permissionRows } = await supabase.from("permissions").select("id,code").in("id", permissionIds);
+        permissionRows?.forEach((permission) => permissions.add(permission.code));
+      }
+    }
+  }
+  return { userId, workspaceId, workspace, permissions };
 }
