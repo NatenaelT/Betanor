@@ -45,6 +45,8 @@ The role matrix is a capability summary; its columns are mapped to the master-sp
 - Staff holding `leave.approve` can review and approve/reject submitted leave requests within their authorized workspace. Staff holding `payroll.manage`, `hr.read`, `hr.manage`, or `users.manage` receive only the narrow data reads expressly defined for those capabilities.
 - CRM, commercial, projects, finance, recruitment, documents, audits, and write-capable CMS data remain deny-by-default until their module-specific implementation phase.
 
+People-module enforcement now follows the same least-privilege model: `hr.read` can read employee and contract records, `hr.manage` can create/update employee profiles, positions, contracts, vacancies, candidates, and applications, and `recruitment.manage` can operate the recruitment pipeline. Employees can read their own profile/contract and request leave with `leave.request`; an immediate manager can move a direct report's submitted leave to `in_review`, while HR (`hr.manage`) is required to approve or reject. Public visitors can only read currently active, date-valid job openings and can submit applications through the validated public RPC; candidate records remain hidden from anonymous and non-HR roles.
+
 ### Phase 7 CMS access surface
 
 - `industries`, `services`, `case_studies`, and `insights` now use RLS-backed editorial permissions. Public visitors retain read access only to active/published records.

@@ -8,6 +8,8 @@ Implemented in Supabase on 15 September 2026 through the tracked migrations in `
 - `202609150002_harden_rls_and_foreign_key_indexes.sql` adds explicit deny-by-default operational policies and foreign-key indexes.
 - `202609150003_add_workflow_supporting_domains.sql` adds opportunities, public chat, reusable approvals, document links, vendors, positions, and calendar events.
 - `202609150020_phase16_work_management.sql` enables authenticated Work-module access for tasks, assignees, comments, and delivery indexes.
+- `202609150021_phase17_people_hr_recruitment.sql` adds automatic employee IDs, standard 8×5 workweek fields, business-day leave calculation, HR recruitment access, and the public application RPC.
+- `202609150022_phase17_leave_two_step_guard.sql` ensures managers move leave to review while HR finalizes approval or rejection.
 
 The physical model uses `workspaces` as the tenant/company boundary, UUID primary keys, `timestamptz` audit timestamps, ISO-4217 currency codes, and `numeric(14,2)` money values. Every table in the exposed `public` schema has RLS enabled. Operational tables have no client grants and an explicit deny policy until their module-specific permission rules are implemented; the Work module is now an exception with authenticated grants constrained by task/project permissions. Service-role server workflows remain the only authorized integration path for unimplemented modules. Published CMS content is the sole anonymous read surface. Phase 7 governs industries, services, case studies, and insights through a draft-to-published editorial flow. Phase 8 extends that model to product categories and products, including the optional category-to-product relationship and product specifications.
 
