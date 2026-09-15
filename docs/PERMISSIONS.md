@@ -59,6 +59,13 @@ People-module enforcement now follows the same least-privilege model: `hr.read` 
 - Category and product writers can create and revise drafts; publishers control release. Public callers can select only active records with a publication timestamp.
 - Catalogue writes use the protected CMS audit function and have no browser delete permission, preserving a traceable commercial catalogue history.
 
+### Phase 18 finance access surface
+
+- `finance.read` can read the workspace finance dashboard, categories, vendors, budgets, expenses, invoices, invoice lines, payments, and the employee/project/customer labels needed for reconciliation.
+- `finance.create` can create and revise finance records; `finance.approve` can approve budgets, expenses, and invoices. Expense requesters receive `expense.request` and can submit only their own draft/submitted requests.
+- Expense approvals record the decision and timestamp in `expense_approvals`. The approver identity is resolved from the signed-in employee profile when available; it is never trusted from a browser form.
+- Invoice VAT/TIN fields are auditable evidence and configurable per invoice. The application does not claim to be a statutory fiscal invoicing device.
+
 ## Sensitive-data controls
 
 - Payslips, compensation, bank/tax identifiers, medical/leave detail, candidate attachments, and signed contracts need narrow policies and audit reads.
