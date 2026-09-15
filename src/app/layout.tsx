@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+
+import { BETANOR_LOGO_DATA_URI } from "@/lib/brand-assets";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -8,6 +10,11 @@ export const metadata: Metadata = {
   },
   description:
     "Betanor General Trading P.L.C. — technology consulting, implementation, and support.",
+  icons: {
+    icon: BETANOR_LOGO_DATA_URI,
+    shortcut: BETANOR_LOGO_DATA_URI,
+    apple: BETANOR_LOGO_DATA_URI,
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
