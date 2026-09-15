@@ -10,8 +10,8 @@ export function BetanorMark({ className, ...props }: HTMLAttributes<HTMLDivEleme
         <span className="block text-sm font-bold tracking-[0.14em] text-[var(--betanor-navy)]">
           BETANOR
         </span>
-        <span className="block pt-1 text-[10px] font-medium tracking-[0.12em] text-[var(--betanor-muted)]">
-          TECHNOLOGY SOLUTIONS
+        <span className="block pt-1 text-[10px] font-medium tracking-[0.06em] text-[var(--betanor-muted)]">
+          ALWAYS WELCOME, ALWAYS READY.
         </span>
       </span>
     </div>
