@@ -19,7 +19,11 @@ async function generatePayroll(data: FormData) {
   const supabase = await createClient();
   const access = await resolveWorkspace(supabase);
   if (!access.workspaceId || !access.permissions.has("payroll.manage")) return;
-  const { data: cycle, error } = await supabase.from("payroll_cycles").upsert({ workspace_id: access.workspaceId, period_start: periodStart, period_end: periodEnd, status: "draft" }, { onConflict: "workspace_id,period_start,period_end" }).select("id").single();
+  const { data: existingCycle } = await supabase.from("payroll_cycles").select("id,status").eq("workspace_id", access.workspaceId).eq("period_start", periodStart).eq("period_end", periodEnd).maybeSingle();
+  if (existingCycle && ["approved", "cancelled"].includes(existingCycle.status)) return;
+  const { data: cycle, error } = existingCycle
+    ? { data: existingCycle, error: null }
+    : await supabase.from("payroll_cycles").insert({ workspace_id: access.workspaceId, period_start: periodStart, period_end: periodEnd, status: "draft" }).select("id,status").single();
   if (error || !cycle) return;
   const { data: employees } = await supabase.from("employees").select("id,employment_status,employment_contracts(salary_amount,currency_code,status,starts_on,ends_on)").eq("workspace_id", access.workspaceId);
   for (const employee of employees ?? []) {
