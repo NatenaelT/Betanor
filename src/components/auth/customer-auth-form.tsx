@@ -15,6 +15,16 @@ export function CustomerAuthForm({ nextPath = "/portal", signUp = false }: { nex
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [lastSignupEmail, setLastSignupEmail] = useState<string | null>(null);
+  const [isResending, setIsResending] = useState(false);
+
+  function getAuthOrigin() {
+    const hostname = window.location.hostname;
+    if (hostname === "betanor.et" || hostname === "www.betanor.et" || hostname.endsWith(".vercel.app")) {
+      return "https://betanor.et";
+    }
+    return window.location.origin;
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,11 +34,11 @@ export function CustomerAuthForm({ nextPath = "/portal", signUp = false }: { nex
     const password = String(form.get("password") ?? "");
     const supabase = createClient();
     if (isSignUp) {
-      const emailRedirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent("/customer/onboard")}`;
+      const emailRedirectTo = `${getAuthOrigin()}/auth/callback?next=${encodeURIComponent("/customer/onboard")}`;
       const { data, error: signUpError } = await supabase.auth.signUp({ email, password, options: { data: { full_name: String(form.get("fullName") ?? "").trim() }, emailRedirectTo } });
       if (signUpError) { setError(signUpError.message); setIsSubmitting(false); return; }
       if (data.session) router.replace("/customer/onboard");
-      else setMessage("We sent a confirmation link to your email. Confirm your address, then sign in to finish your customer profile.");
+      else { setLastSignupEmail(email); setMessage("We sent a confirmation link to your email. Confirm your address, then sign in to finish your customer profile."); }
     } else {
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) { setError(signInError.message); setIsSubmitting(false); return; }
@@ -37,13 +47,24 @@ export function CustomerAuthForm({ nextPath = "/portal", signUp = false }: { nex
     setIsSubmitting(false);
   }
 
+  async function resendConfirmation() {
+    if (!lastSignupEmail) return;
+    setIsResending(true); setError(null);
+    const supabase = createClient();
+    const emailRedirectTo = `${getAuthOrigin()}/auth/callback?next=${encodeURIComponent("/customer/onboard")}`;
+    const { error: resendError } = await supabase.auth.resend({ type: "signup", email: lastSignupEmail, options: { emailRedirectTo } });
+    if (resendError) setError(resendError.message);
+    else setMessage("A fresh confirmation link has been sent. Open the newest email only; older links are invalidated.");
+    setIsResending(false);
+  }
+
   return <form className="mt-8 space-y-5" onSubmit={submit}>
     {isSignUp ? <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="customer-full-name">Contact name<Input id="customer-full-name" name="fullName" required minLength={2} className="mt-2" /></label> : null}
     <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="customer-email">Email address<Input id="customer-email" name="email" type="email" autoComplete="email" required className="mt-2" /></label>
     <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="customer-password">Password<div className="relative mt-2"><Input id="customer-password" name="password" type={showPassword ? "text" : "password"} autoComplete={isSignUp ? "new-password" : "current-password"} minLength={8} required className="pr-16" /><button type="button" className="absolute inset-y-0 right-0 rounded-r-lg px-3 text-xs font-semibold text-[var(--betanor-blue)] hover:bg-blue-50" onClick={() => setShowPassword((visible) => !visible)} aria-controls="customer-password" aria-pressed={showPassword}>{showPassword ? "Hide" : "Show"}</button></div></label>
     {error ? <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
-    {message ? <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm leading-6 text-emerald-900">{message}</p> : null}
+    {message ? <div role="status" className="rounded-lg bg-emerald-50 px-3 py-3 text-sm leading-6 text-emerald-900"><p>{message}</p>{lastSignupEmail ? <button type="button" className="mt-2 font-semibold text-[var(--betanor-blue)] disabled:opacity-60" onClick={resendConfirmation} disabled={isResending}>{isResending ? "Sending…" : "Resend confirmation email"}</button> : null}</div> : null}
     <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? "Please wait…" : isSignUp ? "Create customer account" : "Sign in securely"}</Button>
-    <div className="flex items-center justify-between gap-3 text-sm"><button type="button" className="font-semibold text-[var(--betanor-blue)]" onClick={() => { setIsSignUp(!isSignUp); setError(null); setMessage(null); }}>{isSignUp ? "Already registered? Sign in" : "New customer? Create account"}</button><Link href="/" className="text-[var(--betanor-muted)] hover:text-[var(--betanor-blue)]">Back to website</Link></div>
+    <div className="flex items-center justify-between gap-3 text-sm"><button type="button" className="font-semibold text-[var(--betanor-blue)]" onClick={() => { setIsSignUp(!isSignUp); setError(null); setMessage(null); setLastSignupEmail(null); }}>{isSignUp ? "Already registered? Sign in" : "New customer? Create account"}</button><Link href="/" className="text-[var(--betanor-muted)] hover:text-[var(--betanor-blue)]">Back to website</Link></div>
   </form>;
 }
