@@ -13,11 +13,13 @@ export async function resolveWorkspace(supabase: SupabaseClient) {
   const workspaceId = workspace?.id ?? null;
   const permissions = new Set<string>();
   const roleCodes = new Set<string>();
+  let hasStaffRole = false;
   if (userId) {
     const { data: roleRows } = await supabase.from("user_roles").select("role_id,roles(code,role_type)").eq("user_id", userId);
     const roleIds = (roleRows ?? []).map((row) => row.role_id).filter(Boolean);
     (roleRows ?? []).forEach((row) => {
       const role = Array.isArray(row.roles) ? row.roles[0] : row.roles;
+      if (role?.role_type === "staff") hasStaffRole = true;
       if (role?.code && role.role_type !== "customer") roleCodes.add(role.code);
     });
     if (roleIds.length) {
@@ -38,5 +40,5 @@ export async function resolveWorkspace(supabase: SupabaseClient) {
       }
     }
   }
-  return { userId, workspaceId, workspace, permissions, roleCodes, accountType: profile?.account_type ?? "staff", isActive: profile?.is_active !== false };
+  return { userId, workspaceId, workspace, permissions, roleCodes, hasStaffRole, accountType: profile?.account_type ?? "staff", isActive: profile?.is_active !== false };
 }

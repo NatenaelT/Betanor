@@ -19,7 +19,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     supabase.from("user_roles").select("roles(code,role_type)").eq("user_id", userId),
     supabase.from("profiles").select("account_type,is_active").eq("id", userId).maybeSingle(),
   ]);
-  const isStaff = profile?.is_active !== false && profile?.account_type === "staff" && (roleRows ?? []).some((row) => { const relation = row.roles as unknown as { role_type?: string } | { role_type?: string }[] | null; const role = Array.isArray(relation) ? relation[0] : relation; return role?.role_type === "staff"; });
+  const isStaff = profile?.is_active !== false && (profile?.account_type === "staff" || (roleRows ?? []).some((row) => { const relation = row.roles as unknown as { role_type?: string } | { role_type?: string }[] | null; const role = Array.isArray(relation) ? relation[0] : relation; return role?.role_type === "staff"; }));
   const isStaffPreview = !access?.customer_id && isStaff;
   if (!access?.customer_id && !isStaffPreview) redirect("/customer/onboard");
   const customer = Array.isArray(access?.customers) ? access.customers[0] : access?.customers;

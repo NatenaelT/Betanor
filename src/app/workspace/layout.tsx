@@ -15,7 +15,10 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   if (!jwt?.claims.sub) redirect("/login");
   const email = typeof jwt.claims.email === "string" ? jwt.claims.email : "";
   const access = await resolveWorkspace(supabase);
-  if (!access.isActive || access.accountType === "customer" || access.roleCodes.size === 0) {
+  // Role assignments are authoritative. The profile account_type is kept as a
+  // routing hint for legacy records, but a stale customer value must not lock
+  // an administrator or staff member out after a role change.
+  if (!access.isActive || (!access.hasStaffRole && access.accountType === "customer") || access.roleCodes.size === 0) {
     redirect(access.accountType === "customer" ? "/portal" : "/login?next=/workspace");
   }
 
