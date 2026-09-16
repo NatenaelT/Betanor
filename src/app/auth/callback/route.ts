@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     if (!error) return NextResponse.redirect(new URL(nextPath, requestUrl.origin));
   }
 
-  const failureUrl = new URL(customerFlow ? "/customer/login" : "/staff/login", requestUrl.origin);
+  const failureUrl = new URL("/login", requestUrl.origin);
   failureUrl.searchParams.set(
     "error",
     customerFlow

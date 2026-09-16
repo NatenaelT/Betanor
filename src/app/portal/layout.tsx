@@ -13,7 +13,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
   const userId = typeof claims?.claims.sub === "string" ? claims.claims.sub : null;
-  if (!userId) redirect("/customer/login?next=/portal");
+  if (!userId) redirect("/login?next=/portal");
   const { data: access } = await supabase.from("customer_portal_access").select("customer_id,customers(name,legal_name)").eq("profile_id", userId).eq("is_active", true).limit(1).maybeSingle();
   const [{ data: roleRows }, { data: profile }] = await Promise.all([
     supabase.from("user_roles").select("roles(code,role_type)").eq("user_id", userId),

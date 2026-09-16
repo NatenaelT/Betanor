@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { destinationForAccount } from "@/lib/auth-routing";
 
-export function CustomerAuthForm({ nextPath = "/portal", signUp = false }: { nextPath?: string; signUp?: boolean }) {
+export function CustomerAuthForm({ nextPath = "/portal", signUp = false, allowToggle = true }: { nextPath?: string; signUp?: boolean; allowToggle?: boolean }) {
   const router = useRouter();
   const [isSignUp, setIsSignUp] = useState(signUp);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,7 +36,7 @@ export function CustomerAuthForm({ nextPath = "/portal", signUp = false }: { nex
     const supabase = createClient();
     if (isSignUp) {
       const emailRedirectTo = `${getAuthOrigin()}/auth/callback?next=${encodeURIComponent("/customer/onboard")}`;
-      const { data, error: signUpError } = await supabase.auth.signUp({ email, password, options: { data: { full_name: String(form.get("fullName") ?? "").trim() }, emailRedirectTo } });
+      const { data, error: signUpError } = await supabase.auth.signUp({ email, password, options: { data: { full_name: String(form.get("fullName") ?? "").trim(), account_type: "customer" }, emailRedirectTo } });
       if (signUpError) { setError(signUpError.message); setIsSubmitting(false); return; }
       if (data.session) router.replace("/customer/onboard");
       else { setLastSignupEmail(email); setMessage("We sent a confirmation link to your email. Confirm your address, then sign in to finish your customer profile."); }
@@ -69,6 +69,6 @@ export function CustomerAuthForm({ nextPath = "/portal", signUp = false }: { nex
     {error ? <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
     {message ? <div role="status" className="rounded-lg bg-emerald-50 px-3 py-3 text-sm leading-6 text-emerald-900"><p>{message}</p>{lastSignupEmail ? <button type="button" className="mt-2 font-semibold text-[var(--betanor-blue)] disabled:opacity-60" onClick={resendConfirmation} disabled={isResending}>{isResending ? "Sending…" : "Resend confirmation email"}</button> : null}</div> : null}
     <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? "Please wait…" : isSignUp ? "Create customer account" : "Sign in securely"}</Button>
-    <div className="flex items-center justify-between gap-3 text-sm"><button type="button" className="font-semibold text-[var(--betanor-blue)]" onClick={() => { setIsSignUp(!isSignUp); setError(null); setMessage(null); setLastSignupEmail(null); }}>{isSignUp ? "Already registered? Sign in" : "New customer? Create account"}</button><Link href="/" className="text-[var(--betanor-muted)] hover:text-[var(--betanor-blue)]">Back to website</Link></div>
+    <div className="flex items-center justify-between gap-3 text-sm">{allowToggle ? <button type="button" className="font-semibold text-[var(--betanor-blue)]" onClick={() => { setIsSignUp(!isSignUp); setError(null); setMessage(null); setLastSignupEmail(null); }}>{isSignUp ? "Already registered? Sign in" : "New customer? Create account"}</button> : <Link href="/login" className="font-semibold text-[var(--betanor-blue)]">Already registered? Sign in</Link>}<Link href="/" className="text-[var(--betanor-muted)] hover:text-[var(--betanor-blue)]">Back to website</Link></div>
   </form>;
 }
