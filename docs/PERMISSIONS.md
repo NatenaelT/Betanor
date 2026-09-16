@@ -8,7 +8,7 @@
 
 Authorization has three layers: Supabase Auth identifies a user; an organization membership assigns one or more roles; PostgreSQL RLS restricts rows by organization and responsibility. Role names below are proposals. Permission grants should be capability-based, with role bundles stored in database configuration or version-controlled seed data.
 
-Phase 5 implements this model with a secure `auth.users → profiles` trigger, 16 seeded system roles, 32 capability records, and database-held role assignments. Identity metadata may set a display name, but never grants a role or permission. The permission helper is in a non-exposed `private` schema, executes with a fixed search path, and is used only by RLS policies.
+Phase 5 implements this model with a secure `auth.users → profiles` trigger, 18 seeded system roles (including staff/customer role typing), 40 capability records, and database-held role assignments. Identity metadata may set a display name, but never grants a role or permission. The permission helper is in a non-exposed `private` schema, executes with a fixed search path, and is used only by RLS policies.
 
 The role matrix is a capability summary; its columns are mapped to the master-specified role bundles above during Phase 5.
 
@@ -77,3 +77,11 @@ People-module enforcement now follows the same least-privilege model: `hr.read` 
 ## Segregation of duties
 
 No single ordinary role should create, approve, and pay the same expense. Finance finalization of payroll should be separated from HR data preparation; contract acceptance should preserve customer consent evidence; role changes and RLS helper changes require an audited administrator action.
+
+## Account-control implementation
+
+- `profiles.account_type` is either `staff` or `customer`; `roles.role_type` makes the same distinction. The admin control panel rejects mismatched assignments, and customer accounts cannot enter `/workspace`.
+- Supabase Auth identities are provisioned only by the `admin-user-management` Edge Function. It validates the caller's active `users.manage` capability, creates the Auth UUID, writes the profile, assigns a compatible role, and records an audit event. Service credentials remain inside the Edge Function.
+- `user_permissions` stores explicit per-user allow/deny overrides. A matching override wins over the role bundle, so an administrator can switch any catalogue capability on or off without creating a new role. The table is RLS-protected; browser mutations go through the authenticated Edge Function.
+- Customer provisioning creates the customer record and `customer_portal_access` link in the same admin flow. Revoking or deleting an identity disables the link while preserving commercial history.
+- Staff chat and customer chat share the conversation store, but internal messages carry `is_internal = true` and are excluded from customer RLS reads. `start_internal_chat` requires `chat.manage`.

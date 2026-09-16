@@ -15,6 +15,9 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   if (!jwt?.claims.sub) redirect("/login");
   const email = typeof jwt.claims.email === "string" ? jwt.claims.email : "";
   const access = await resolveWorkspace(supabase);
+  if (!access.isActive || access.accountType === "customer" || access.roleCodes.size === 0) {
+    redirect(access.accountType === "customer" ? "/portal" : "/staff/login?next=/workspace");
+  }
 
   return (
     <div className="flex min-h-screen bg-[var(--betanor-surface)]">
