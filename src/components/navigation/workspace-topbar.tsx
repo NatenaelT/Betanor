@@ -22,7 +22,7 @@ export function WorkspaceTopbar({ email }: { email: string }) {
     router.refresh();
   }
 
-  return <header className="sticky top-0 z-20 flex min-h-16 items-center gap-3 border-b border-[var(--betanor-border)] bg-white/95 px-5 pl-18 backdrop-blur lg:px-8 lg:pl-8">
+  return <header className="sticky top-0 z-20 flex min-h-16 items-center gap-3 border-b border-[var(--betanor-border)] bg-[var(--betanor-header-bg)]/95 px-5 pl-18 text-[var(--betanor-header-text)] backdrop-blur lg:px-8 lg:pl-8">
     <button type="button" onClick={() => setSearchOpen(true)} className="hidden min-h-10 w-full max-w-md items-center justify-between rounded-lg border border-[var(--betanor-border)] bg-[var(--betanor-surface)] px-3 text-left text-sm text-[var(--betanor-muted)] transition-colors hover:border-[var(--betanor-blue)]"><span>Search workspace</span><kbd className="rounded border border-[var(--betanor-border)] bg-white px-1.5 py-0.5 text-[10px]">⌘ K</kbd></button>
     <button type="button" onClick={() => setSearchOpen(true)} aria-label="Search workspace" className="grid size-10 place-items-center rounded-lg text-lg text-[var(--betanor-navy)] hover:bg-slate-100 sm:hidden">⌕</button>
     <div className="relative ml-auto flex items-center gap-1 sm:gap-2">

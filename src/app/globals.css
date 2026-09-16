@@ -12,6 +12,21 @@
   --betanor-muted: #66758c;
   --betanor-text: #17243a;
   --betanor-border: #d9e1ec;
+  --betanor-nav-bg: #0b264f;
+  --betanor-nav-text: #e8f0ff;
+  --betanor-nav-hover: #12356b;
+  --betanor-nav-active: #0b65c2;
+  --betanor-nav-edge: #d8a33a;
+  --betanor-header-bg: #ffffff;
+  --betanor-header-text: #12356b;
+  --betanor-footer-bg: #0b264f;
+  --betanor-footer-text: #d5e1f2;
+  --betanor-button-bg: #12356b;
+  --betanor-button-text: #ffffff;
+  --betanor-field-background: #ffffff;
+  --betanor-field-text: #17243a;
+  --betanor-field-border: #d9e1ec;
+  --betanor-field-focus: #2188ff;
   --betanor-success: #16803c;
   --betanor-warning: #a15d00;
   --betanor-danger: #bf2639;
@@ -50,6 +65,22 @@ h6 {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
+}
+
+select,
+textarea {
+  border-color: var(--betanor-field-border) !important;
+  background-color: var(--betanor-field-background) !important;
+  color: var(--betanor-field-text) !important;
+}
+
+select:focus,
+textarea:focus {
+  border-color: var(--betanor-field-focus) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--betanor-field-focus) 18%, transparent);
 }

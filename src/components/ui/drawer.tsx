@@ -15,8 +15,8 @@ export function Drawer({ children, isOpen, onClose, title }: { children: ReactNo
 
   return (
     <div className={cn("fixed inset-0 z-50 lg:hidden", !isOpen && "pointer-events-none")} aria-hidden={!isOpen}>
-      <button aria-label="Close navigation" className={cn("absolute inset-0 bg-[var(--betanor-dark-navy)]/45 transition-opacity", isOpen ? "opacity-100" : "opacity-0")} onClick={onClose} tabIndex={isOpen ? 0 : -1} />
-      <aside aria-label={title} aria-modal="true" className={cn("relative h-full w-80 max-w-[88vw] bg-[var(--betanor-dark-navy)] shadow-2xl transition-transform", isOpen ? "translate-x-0" : "-translate-x-full")} role="dialog">
+      <button aria-label="Close navigation" className={cn("absolute inset-0 bg-[var(--betanor-nav-bg)]/45 transition-opacity", isOpen ? "opacity-100" : "opacity-0")} onClick={onClose} tabIndex={isOpen ? 0 : -1} />
+      <aside aria-label={title} aria-modal="true" className={cn("relative h-full w-80 max-w-[88vw] border-r-2 border-[var(--betanor-nav-edge)] bg-[var(--betanor-nav-bg)] text-[var(--betanor-nav-text)] shadow-2xl transition-transform", isOpen ? "translate-x-0" : "-translate-x-full")} role="dialog">
         {children}
       </aside>
     </div>

@@ -6,11 +6,11 @@ type ButtonVariant = "primary" | "secondary" | "outline" | "danger" | "ghost";
 type ButtonSize = "sm" | "md" | "lg";
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-[var(--betanor-navy)] text-white hover:bg-[var(--betanor-blue)] focus-visible:outline-[var(--betanor-electric-blue)]",
+  primary: "bg-[var(--betanor-button-bg)] text-[var(--betanor-button-text)] hover:brightness-95 focus-visible:outline-[var(--betanor-field-focus)]",
   secondary: "bg-[var(--betanor-gold)] text-[var(--betanor-dark-navy)] hover:bg-[#b7871f] focus-visible:outline-[var(--betanor-gold)]",
-  outline: "border border-[var(--betanor-border)] bg-white text-[var(--betanor-navy)] hover:border-[var(--betanor-blue)] hover:bg-slate-50 focus-visible:outline-[var(--betanor-electric-blue)]",
+  outline: "border border-[var(--betanor-field-border)] bg-[var(--betanor-field-background)] text-[var(--betanor-header-text)] hover:border-[var(--betanor-field-focus)] hover:bg-[var(--betanor-surface)] focus-visible:outline-[var(--betanor-field-focus)]",
   danger: "bg-[var(--betanor-danger)] text-white hover:bg-[#9d1f2f] focus-visible:outline-[var(--betanor-danger)]",
-  ghost: "text-[var(--betanor-navy)] hover:bg-slate-100 focus-visible:outline-[var(--betanor-electric-blue)]",
+  ghost: "text-[var(--betanor-header-text)] hover:bg-[var(--betanor-surface)] focus-visible:outline-[var(--betanor-field-focus)]",
 };
 
 const sizes: Record<ButtonSize, string> = {
