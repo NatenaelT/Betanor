@@ -47,13 +47,15 @@ export function SignInForm({ nextPath, demoAccounts }: { nextPath: string; demoA
       setIsSubmitting(false);
       return;
     }
-    const hasCustomerRole = (roleRows ?? []).some((row) => {
+    const hasRoleType = (roleType: "customer" | "staff") => (roleRows ?? []).some((row) => {
       const relation = row.roles as unknown as { role_type?: string } | { role_type?: string }[] | null;
       const role = Array.isArray(relation) ? relation[0] : relation;
-      return role?.role_type === "customer";
+      return role?.role_type === roleType;
     });
+    const hasStaffRole = hasRoleType("staff");
+    const hasCustomerRole = hasRoleType("customer");
     const accountType = profile?.account_type || (hasCustomerRole ? "customer" : "staff");
-    router.replace(destinationForAccount(accountType, nextPath));
+    router.replace(destinationForAccount(accountType, nextPath, hasStaffRole));
     router.refresh();
   }
 

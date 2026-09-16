@@ -44,9 +44,17 @@ export function CustomerAuthForm({ nextPath = "/portal", signUp = false, allowTo
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) { setError(signInError.message); setIsSubmitting(false); return; }
       const userId = signInData.user?.id;
-      const { data: profile } = userId ? await supabase.from("profiles").select("account_type,is_active").eq("id", userId).maybeSingle() : { data: null };
+      const [{ data: profile }, { data: roleRows }] = await Promise.all([
+        userId ? supabase.from("profiles").select("account_type,is_active").eq("id", userId).maybeSingle() : Promise.resolve({ data: null }),
+        userId ? supabase.from("user_roles").select("roles(role_type)").eq("user_id", userId) : Promise.resolve({ data: [] as never[] }),
+      ]);
       if (profile?.is_active === false) { await supabase.auth.signOut(); setError("This account is inactive. Ask a Betanor administrator to restore access."); setIsSubmitting(false); return; }
-      router.replace(destinationForAccount(profile?.account_type, nextPath)); router.refresh();
+      const hasStaffRole = (roleRows ?? []).some((row) => {
+        const relation = row.roles as unknown as { role_type?: string } | { role_type?: string }[] | null;
+        const role = Array.isArray(relation) ? relation[0] : relation;
+        return role?.role_type === "staff";
+      });
+      router.replace(destinationForAccount(profile?.account_type, nextPath, hasStaffRole)); router.refresh();
     }
     setIsSubmitting(false);
   }
