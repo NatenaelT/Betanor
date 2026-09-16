@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
+import { destinationForAccount } from "@/lib/auth-routing";
 
 export function CustomerAuthForm({ nextPath = "/portal", signUp = false }: { nextPath?: string; signUp?: boolean }) {
   const router = useRouter();
@@ -40,9 +41,12 @@ export function CustomerAuthForm({ nextPath = "/portal", signUp = false }: { nex
       if (data.session) router.replace("/customer/onboard");
       else { setLastSignupEmail(email); setMessage("We sent a confirmation link to your email. Confirm your address, then sign in to finish your customer profile."); }
     } else {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) { setError(signInError.message); setIsSubmitting(false); return; }
-      router.replace(nextPath); router.refresh();
+      const userId = signInData.user?.id;
+      const { data: profile } = userId ? await supabase.from("profiles").select("account_type,is_active").eq("id", userId).maybeSingle() : { data: null };
+      if (profile?.is_active === false) { await supabase.auth.signOut(); setError("This account is inactive. Ask a Betanor administrator to restore access."); setIsSubmitting(false); return; }
+      router.replace(destinationForAccount(profile?.account_type, nextPath)); router.refresh();
     }
     setIsSubmitting(false);
   }

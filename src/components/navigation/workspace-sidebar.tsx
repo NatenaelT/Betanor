@@ -32,7 +32,7 @@ function NavigationContents({ close, permissionCodes = [], roleCodes = [] }: { c
         {section.label ? <p className="mb-2 px-3 text-[10px] font-bold tracking-[0.15em] text-slate-500 uppercase">{section.label}</p> : null}
         <div className="space-y-1">{visibleItems.map((item) => {
           const active = Boolean(item.href) && (item.href === "/workspace" ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`));
-          const className = cn("group flex min-h-10 items-center rounded-lg border border-transparent px-3 text-sm transition-colors", active ? "border-white/10 bg-white/12 font-semibold text-white shadow-sm" : "text-slate-300", item.href ? "hover:border-white/10 hover:bg-white/8 hover:text-white" : "cursor-default opacity-75");
+          const className = cn("group flex min-h-10 items-center rounded-md border border-transparent px-3 text-sm transition-colors", active ? "border-[var(--betanor-electric-blue)] bg-[var(--betanor-blue)] font-semibold text-white shadow-sm" : "text-slate-300", item.href ? "hover:border-white/10 hover:bg-white/10 hover:text-white" : "cursor-default opacity-75");
           const content = <><span className={cn("mr-3 size-1.5 shrink-0 rounded-full", active ? "bg-[var(--betanor-gold)]" : "bg-slate-600 group-hover:bg-slate-400")} /><span className="min-w-0"><span className="block truncate">{item.label}</span>{item.description ? <span className={cn("mt-0.5 block truncate text-[10px] font-normal", active ? "text-slate-300" : "text-slate-500 group-hover:text-slate-400")}>{item.description}</span> : null}</span></>;
           return item.href ? <Link key={item.label} href={item.href} className={className} onClick={close}>{content}</Link> : <span key={item.label} className={className}>{content}</span>;
         })}</div>
@@ -45,7 +45,7 @@ export function WorkspaceSidebar({ permissionCodes = [], roleCodes = [] }: { per
   const [isOpen, setIsOpen] = useState(false);
   return <>
     <button aria-controls="workspace-mobile-navigation" aria-expanded={isOpen} aria-label="Open workspace navigation" className="fixed top-3 left-4 z-30 grid size-10 place-items-center rounded-lg border border-[var(--betanor-border)] bg-white text-lg text-[var(--betanor-navy)] shadow-sm lg:hidden" onClick={() => setIsOpen(true)}>☰</button>
-    <aside className="hidden h-screen max-h-screen w-72 shrink-0 overflow-y-auto border-r border-slate-800 bg-[var(--betanor-dark-navy)] px-5 py-6 text-slate-300 lg:sticky lg:top-0 lg:block"><NavigationContents permissionCodes={permissionCodes} roleCodes={roleCodes} /></aside>
+    <aside className="hidden h-auto min-h-screen w-72 shrink-0 border-r border-slate-800 bg-[var(--betanor-dark-navy)] px-5 py-6 text-slate-300 lg:sticky lg:top-0 lg:block"><NavigationContents permissionCodes={permissionCodes} roleCodes={roleCodes} /></aside>
     <Drawer isOpen={isOpen} onClose={() => setIsOpen(false)} title="Workspace navigation"><div className="h-full overflow-y-auto px-5 py-6" id="workspace-mobile-navigation"><button aria-label="Close workspace navigation" className="absolute top-4 right-4 grid size-9 place-items-center rounded-lg text-slate-300 hover:bg-white/10" onClick={() => setIsOpen(false)}>×</button><NavigationContents close={() => setIsOpen(false)} permissionCodes={permissionCodes} roleCodes={roleCodes} /></div></Drawer>
   </>;
 }

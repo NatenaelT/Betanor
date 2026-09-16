@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
+import { destinationForAccount } from "@/lib/auth-routing";
 
 type DemoAccount = { email: string; label: string; role_code: string; demo_password: string };
 
@@ -24,7 +25,7 @@ export function SignInForm({ nextPath, demoAccounts }: { nextPath: string; demoA
 
     const formData = new FormData(event.currentTarget);
     const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
       email: String(formData.get("email") ?? ""),
       password: String(formData.get("password") ?? ""),
     });
@@ -35,7 +36,24 @@ export function SignInForm({ nextPath, demoAccounts }: { nextPath: string; demoA
       return;
     }
 
-    router.replace(nextPath);
+    const userId = signInData.user?.id;
+    const [{ data: profile }, { data: roleRows }] = await Promise.all([
+      userId ? supabase.from("profiles").select("account_type,is_active").eq("id", userId).maybeSingle() : Promise.resolve({ data: null }),
+      userId ? supabase.from("user_roles").select("roles(role_type)").eq("user_id", userId) : Promise.resolve({ data: [] as never[] }),
+    ]);
+    if (profile?.is_active === false) {
+      await supabase.auth.signOut();
+      setError("This account is inactive. Ask a Betanor administrator to restore access.");
+      setIsSubmitting(false);
+      return;
+    }
+    const hasCustomerRole = (roleRows ?? []).some((row) => {
+      const relation = row.roles as unknown as { role_type?: string } | { role_type?: string }[] | null;
+      const role = Array.isArray(relation) ? relation[0] : relation;
+      return role?.role_type === "customer";
+    });
+    const accountType = profile?.account_type || (hasCustomerRole ? "customer" : "staff");
+    router.replace(destinationForAccount(accountType, nextPath));
     router.refresh();
   }
 
