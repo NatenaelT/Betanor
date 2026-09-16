@@ -45,7 +45,9 @@ function getOverrideCode(item: PermissionOverride) {
 export function UserManagementPanel({ roles, permissions, rolePermissions }: Props) {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [accountType, setAccountType] = useState<AccountType>("staff");
-  const [roleCode, setRoleCode] = useState(roles.find((role) => role.role_type === "staff")?.code ?? "");
+  const initialStaffRole = roles.find((role) => role.role_type === "staff")?.code ?? "";
+  const initialPermissionDefaults = Object.fromEntries(permissions.map((permission) => [permission.code, (rolePermissions[initialStaffRole] ?? []).includes(permission.code)]));
+  const [roleCode, setRoleCode] = useState(initialStaffRole);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -58,7 +60,7 @@ export function UserManagementPanel({ roles, permissions, rolePermissions }: Pro
   const [accessLevel, setAccessLevel] = useState("customer_admin");
   const [createEmployee, setCreateEmployee] = useState(false);
   const [hireDate, setHireDate] = useState("");
-  const [permissionOverrides, setPermissionOverrides] = useState<Record<string, boolean>>({});
+  const [permissionOverrides, setPermissionOverrides] = useState<Record<string, boolean>>(initialPermissionDefaults);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -98,7 +100,7 @@ export function UserManagementPanel({ roles, permissions, rolePermissions }: Pro
   }
 
   function resetForm() {
-    setEditingId(null); setAccountType("staff"); setRoleCode(roles.find((role) => role.role_type === "staff")?.code ?? ""); setFullName(""); setEmail(""); setPhone(""); setJobTitle(""); setPassword(""); setCompanyName(""); setLegalName(""); setAddress(""); setAccessLevel("customer_admin"); setCreateEmployee(false); setHireDate(""); setIsActive(true); applyRoleDefaults(roles.find((role) => role.role_type === "staff")?.code ?? "");
+    setEditingId(null); setAccountType("staff"); setRoleCode(initialStaffRole); setFullName(""); setEmail(""); setPhone(""); setJobTitle(""); setPassword(""); setCompanyName(""); setLegalName(""); setAddress(""); setAccessLevel("customer_admin"); setCreateEmployee(false); setHireDate(""); setIsActive(true); applyRoleDefaults(initialStaffRole);
   }
 
   function editUser(user: UserRecord) {
