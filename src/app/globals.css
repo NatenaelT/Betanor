@@ -84,3 +84,12 @@ textarea:focus {
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--betanor-field-focus) 18%, transparent);
 }
+
+.letter-rich-text p { margin: 0 0 0.9rem; }
+.letter-rich-text ul, .letter-rich-text ol { margin: 0.75rem 0 0.9rem 1.35rem; }
+.letter-rich-text ul { list-style: disc; }
+.letter-rich-text ol { list-style: decimal; }
+.letter-rich-text a { color: var(--betanor-blue); text-decoration: underline; }
+.letter-rich-text table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+.letter-rich-text th, .letter-rich-text td { border: 1px solid var(--betanor-border); padding: 0.5rem; text-align: left; }
+.letter-rich-text blockquote { border-left: 3px solid var(--betanor-gold); padding-left: 1rem; color: var(--betanor-muted); }

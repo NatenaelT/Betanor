@@ -1,0 +1,23 @@
+import { createHash, randomUUID } from "node:crypto";
+
+import { NextResponse } from "next/server";
+
+import { audit, getLetter, letterAuth } from "@/lib/letters/server";
+
+export const dynamic = "force-dynamic";
+const ALLOWED_TYPES = new Set(["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "image/png", "image/jpeg", "text/plain"]);
+const MAX_BYTES = 10 * 1024 * 1024;
+function jsonError(message: string, status = 400) { return NextResponse.json({ error: message }, { status }); }
+
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params; const { supabase, access } = await letterAuth(); if (!access.workspaceId || !access.userId) return jsonError("Authentication is required.", 401); const { letter, error } = await getLetter(supabase, access.workspaceId, id); if (error) return jsonError(error.message); if (!letter) return jsonError("Letter not found.", 404); if (letter.status === "SUBMITTED") return jsonError("Submitted letter attachments are protected.", 409); if (!(access.permissions.has("letters.edit_all") || access.permissions.has("letters.create") || (access.permissions.has("letters.edit_own") && letter.prepared_by === access.userId))) return jsonError("Attachment permission is required.", 403);
+  const form = await request.formData(); const file = form.get("file"); if (!(file instanceof File)) return jsonError("Choose a file to upload.", 422); if (file.size <= 0 || file.size > MAX_BYTES) return jsonError("Attachments must be between 1 byte and 10 MB.", 422); if (!ALLOWED_TYPES.has(file.type)) return jsonError("This file type is not allowed.", 422);
+  const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, "_").slice(-120) || "attachment"; const path = `${access.workspaceId}/${id}/${randomUUID()}-${safeName}`; const bytes = Buffer.from(await file.arrayBuffer()); const checksum = createHash("sha256").update(bytes).digest("hex"); const { error: uploadError } = await supabase.storage.from("betanor-letters").upload(path, bytes, { contentType: file.type, cacheControl: "31536000", upsert: false }); if (uploadError) return jsonError(uploadError.message, 502);
+  const { data: attachment, error: insertError } = await supabase.from("letter_attachments").insert({ letter_id: id, storage_path: path, file_name: safeName, mime_type: file.type, size_bytes: file.size, checksum, uploaded_by: access.userId }).select("id,file_name,mime_type,size_bytes,storage_path,checksum,created_at").single(); if (insertError || !attachment) { await supabase.storage.from("betanor-letters").remove([path]); return jsonError(insertError?.message || "Attachment record failed."); }
+  await audit(supabase, access.workspaceId, id, "letter.attachment_uploaded", { file_name: safeName, size_bytes: file.size }); return NextResponse.json({ attachment }, { status: 201 });
+}
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params; const { supabase, access } = await letterAuth(); if (!access.workspaceId || !access.userId) return jsonError("Authentication is required.", 401); const body = await request.json().catch(() => ({})); const attachmentId = typeof body.id === "string" ? body.id : ""; if (!attachmentId) return jsonError("An attachment is required.", 422); const { letter, error } = await getLetter(supabase, access.workspaceId, id); if (error) return jsonError(error.message); if (!letter) return jsonError("Letter not found.", 404); if (letter.status === "SUBMITTED") return jsonError("Submitted letter attachments are protected.", 409); if (!access.permissions.has("letters.edit_all") && !(access.permissions.has("letters.edit_own") && letter.prepared_by === access.userId)) return jsonError("Attachment permission is required.", 403);
+  const { data: attachment } = await supabase.from("letter_attachments").select("id,storage_path,file_name").eq("id", attachmentId).eq("letter_id", id).is("deleted_at", null).maybeSingle(); if (!attachment) return jsonError("Attachment not found.", 404); await supabase.storage.from("betanor-letters").remove([attachment.storage_path]); const { error: updateError } = await supabase.from("letter_attachments").update({ deleted_at: new Date().toISOString(), deleted_by: access.userId }).eq("id", attachmentId); if (updateError) return jsonError(updateError.message); await audit(supabase, access.workspaceId, id, "letter.attachment_deleted", { file_name: attachment.file_name }); return NextResponse.json({ deleted: true });
+}
