@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cache } from "react";
 
-export async function resolveWorkspace(supabase: SupabaseClient) {
+export const resolveWorkspace = cache(async function resolveWorkspace(supabase: SupabaseClient) {
   const { data: claims } = await supabase.auth.getClaims();
   const userId = typeof claims?.claims.sub === "string" ? claims.claims.sub : null;
   const { data: profile } = userId
@@ -15,7 +16,10 @@ export async function resolveWorkspace(supabase: SupabaseClient) {
   const roleCodes = new Set<string>();
   let hasStaffRole = false;
   if (userId) {
-    const { data: roleRows } = await supabase.from("user_roles").select("role_id,roles(code,role_type)").eq("user_id", userId);
+    const [{ data: roleRows }, { data: overrides }] = await Promise.all([
+      supabase.from("user_roles").select("role_id,roles(code,role_type)").eq("user_id", userId),
+      supabase.from("user_permissions").select("is_allowed,permissions(code)").eq("user_id", userId),
+    ]);
     const roleIds = (roleRows ?? []).map((row) => row.role_id).filter(Boolean);
     (roleRows ?? []).forEach((row) => {
       const role = Array.isArray(row.roles) ? row.roles[0] : row.roles;
@@ -30,7 +34,6 @@ export async function resolveWorkspace(supabase: SupabaseClient) {
         permissionRows?.forEach((permission) => permissions.add(permission.code));
       }
     }
-    const { data: overrides } = await supabase.from("user_permissions").select("is_allowed,permissions(code)").eq("user_id", userId);
     for (const override of overrides ?? []) {
       const relation = override.permissions as unknown as { code?: string } | { code?: string }[] | null;
       const code = Array.isArray(relation) ? relation[0]?.code : relation?.code;
@@ -41,4 +44,4 @@ export async function resolveWorkspace(supabase: SupabaseClient) {
     }
   }
   return { userId, workspaceId, workspace, permissions, roleCodes, hasStaffRole, accountType: profile?.account_type ?? "staff", isActive: profile?.is_active !== false };
-}
+});
