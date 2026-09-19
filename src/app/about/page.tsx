@@ -4,8 +4,7 @@ import { PublicHeader } from "@/components/navigation/public-header";
 import { SiteFooter } from "@/components/navigation/site-footer";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { getPublicContent } from "@/lib/site-content";
-import { createClient } from "@/lib/supabase/server";
+import { getCachedPublicContent } from "@/lib/public-cache";
 
 const values = [
   ["B", "Bold innovation", "We embrace practical technologies and ideas that create measurable value."],
@@ -18,7 +17,7 @@ const values = [
 ];
 
 export default async function AboutPage() {
-  const content = await getPublicContent(await createClient(), "about");
+  const content = await getCachedPublicContent("about");
   const hero = content.get("hero");
   const mission = content.get("mission");
   const vision = content.get("vision");

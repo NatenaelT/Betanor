@@ -1,11 +1,10 @@
 import Link from "next/link";
 
 import { BetanorMark } from "@/components/brand/betanor-mark";
-import { getPublicContent } from "@/lib/site-content";
-import { createClient } from "@/lib/supabase/server";
+import { getCachedPublicContent } from "@/lib/public-cache";
 
 export async function SiteFooter({ showRfq = false }: { showRfq?: boolean }) {
-  const contact = (await getPublicContent(await createClient(), "footer")).get("contact");
+  const contact = (await getCachedPublicContent("footer")).get("contact");
   const address = contact?.title || "Eltek Building 103, Bole Woreda 3";
   const contactLine = contact?.body || "+251 98 201 0088 · +251 91 791 1604 · info@betanor.et";
   const [phoneOne, phoneTwo, email] = contactLine.split("·").map((value) => value.trim());

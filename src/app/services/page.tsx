@@ -5,10 +5,8 @@ import { PageHero } from "@/components/public/page-hero";
 import { PublicHeader } from "@/components/navigation/public-header";
 import { SiteFooter } from "@/components/navigation/site-footer";
 import { Card, CardContent } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/server";
-import { getPublicContent, publicSiteAssetUrl } from "@/lib/site-content";
-
-export const dynamic = "force-dynamic";
+import { getCachedPublicContent, getCachedServicesCatalogue } from "@/lib/public-cache";
+import { publicSiteAssetUrl } from "@/lib/site-content";
 
 const solutionLines = [
   ["Digital workplace", "Secure, connected systems that help teams work clearly and efficiently."],
@@ -18,13 +16,9 @@ const solutionLines = [
 ];
 
 export default async function ServicesPage() {
-  const supabase = await createClient();
-  const [{ data: services }, { data: products }, { data: industries }, { data: caseStudies }, content] = await Promise.all([
-    supabase.from("services").select("id,title,slug,excerpt,content").eq("status", "active").not("published_at", "is", null).order("title"),
-    supabase.from("products").select("id,name,slug,brand,model,short_description,availability,warranty,main_image_path,product_categories(name)").eq("status", "active").not("published_at", "is", null).order("name"),
-    supabase.from("industries").select("id,name,slug,description").eq("status", "active").not("published_at", "is", null).order("name"),
-    supabase.from("case_studies").select("id,title,slug,summary").eq("status", "active").not("published_at", "is", null).order("title"),
-    getPublicContent(supabase, "services"),
+  const [{ services, products, industries, caseStudies }, content] = await Promise.all([
+    getCachedServicesCatalogue(),
+    getCachedPublicContent("services"),
   ]);
   const hero = content.get("hero");
   const capabilities = content.get("capabilities");

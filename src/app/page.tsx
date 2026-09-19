@@ -5,13 +5,12 @@ import { PublicHeader } from "@/components/navigation/public-header";
 import { SiteFooter } from "@/components/navigation/site-footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getPublicContent } from "@/lib/site-content";
-import { createClient } from "@/lib/supabase/server";
+import { getCachedPublicContent } from "@/lib/public-cache";
 
 const services = ["Digital solutions consulting", "Software development & implementation", "IT infrastructure & data center", "Managed IT support", "Security & surveillance", "Training & capacity building"];
 
 export default async function Home() {
-  const content = await getPublicContent(await createClient(), "home");
+  const content = await getCachedPublicContent("home");
   const hero = content.get("hero");
   const consultation = content.get("consultation");
   return <><PublicHeader /><main>

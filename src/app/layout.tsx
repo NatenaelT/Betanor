@@ -3,8 +3,8 @@ import type { CSSProperties } from "react";
 
 import { CustomerChatWidget } from "@/components/portal/customer-chat-widget";
 import { BETANOR_LOGO_DATA_URI } from "@/lib/brand-assets";
-import { createClient } from "@/lib/supabase/server";
-import { googleFontsHref, loadStyleSettings } from "@/lib/style-settings";
+import { loadCachedStyleSettings } from "@/lib/public-cache";
+import { googleFontsHref } from "@/lib/style-settings";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,10 +21,8 @@ export const metadata: Metadata = {
   },
 };
 
-export const dynamic = "force-dynamic";
-
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const styleSettings = await loadStyleSettings(await createClient());
+  const styleSettings = await loadCachedStyleSettings();
   const radiusByScale = { compact: "0.5rem", medium: "0.75rem", soft: "1rem" } as const;
   const style = {
     "--betanor-font-family": `'${styleSettings.font_family}', Aptos, Arial, Helvetica, sans-serif`,

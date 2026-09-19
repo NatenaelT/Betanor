@@ -29,7 +29,7 @@ export function CustomerChatWidget({ customerId: providedCustomerId }: { custome
   const needsGuestIdentity = isGuest && !guestToken;
 
   useEffect(() => {
-    if (providedCustomerId) {
+    if (providedCustomerId || !open) {
       return;
     }
 
@@ -59,7 +59,7 @@ export function CustomerChatWidget({ customerId: providedCustomerId }: { custome
         .maybeSingle();
       if (access?.customer_id) setCustomerId(access.customer_id);
     });
-  }, [providedCustomerId]);
+  }, [open, providedCustomerId]);
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -94,17 +94,26 @@ export function CustomerChatWidget({ customerId: providedCustomerId }: { custome
     if (!open) return;
     const firstLoad = window.setTimeout(() => void load(), 0);
     const supabase = createClient();
-    const filter = resolvedCustomerId ? undefined : conversation?.id.startsWith("guest:") ? undefined : conversation?.id;
-    const channel = supabase.channel(`betanor-chat-${resolvedCustomerId ?? guestToken ?? "guest"}`).on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "chat_messages", ...(filter ? { filter: `conversation_id=eq.${filter}` } : {}) },
-      () => void load(),
-    ).subscribe();
-    const timer = window.setInterval(() => void load(), 10000);
+    // Only subscribe after the authenticated customer's conversation is known.
+    // An unfiltered postgres_changes subscription would receive every chat
+    // message in the workspace. Guest chats use the token RPC and a modest
+    // fallback poll because the token does not expose a safe conversation id.
+    const conversationId = conversation?.id && !conversation.id.startsWith("guest:") ? conversation.id : null;
+    const channel = conversationId
+      ? supabase
+        .channel(`betanor-chat-${conversationId}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` },
+          () => void load(),
+        )
+        .subscribe()
+      : null;
+    const timer = window.setInterval(() => void load(), conversationId ? 30000 : 20000);
     return () => {
       window.clearInterval(timer);
       window.clearTimeout(firstLoad);
-      void supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [open, resolvedCustomerId, guestToken, conversation?.id, load]);
 
