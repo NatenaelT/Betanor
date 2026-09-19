@@ -63,6 +63,7 @@ values (
 )
 on conflict (id) do update set file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
+drop policy if exists chat_attachment_upload_admin on storage.objects;
 create policy chat_attachment_upload_admin on storage.objects
 for insert to authenticated
 with check (
@@ -81,6 +82,7 @@ with check (
   )
 );
 
+drop policy if exists chat_attachment_read_authorized on storage.objects;
 create policy chat_attachment_read_authorized on storage.objects
 for select to authenticated
 using (
@@ -97,6 +99,7 @@ using (
   )
 );
 
+drop policy if exists chat_attachment_delete_admin on storage.objects;
 create policy chat_attachment_delete_admin on storage.objects
 for delete to authenticated
 using (
@@ -111,12 +114,15 @@ using (
 );
 
 grant select, insert, update, delete on public.employees to authenticated;
+drop policy if exists "administrators create employees" on public.employees;
 create policy "administrators create employees" on public.employees for insert to authenticated
 with check ((select private.has_permission('hr.manage', workspace_id)) or (select private.has_permission('users.manage', workspace_id)));
 
+drop policy if exists "administrators update employees" on public.employees;
 create policy "administrators update employees" on public.employees for update to authenticated
 using ((select private.has_permission('hr.manage', workspace_id)) or (select private.has_permission('users.manage', workspace_id)))
 with check ((select private.has_permission('hr.manage', workspace_id)) or (select private.has_permission('users.manage', workspace_id)));
 
+drop policy if exists "administrators delete employees" on public.employees;
 create policy "administrators delete employees" on public.employees for delete to authenticated
 using ((select private.has_permission('hr.manage', workspace_id)) or (select private.has_permission('users.manage', workspace_id)));
