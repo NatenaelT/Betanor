@@ -85,6 +85,17 @@ textarea:focus {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--betanor-field-focus) 18%, transparent);
 }
 
+/* Required controls declare the truth on the input itself. This keeps the
+   indicator consistent even in legacy forms that have not moved to FieldLabel
+   yet, without making optional fields required. */
+label:not([data-required]):has(+ input[required])::after,
+label:not([data-required]):has(+ select[required])::after,
+label:not([data-required]):has(+ textarea[required])::after,
+label:not([data-required]):has(input[required])::after {
+  content: " *";
+  color: var(--betanor-danger);
+}
+
 .letter-rich-text p { margin: 0 0 0.9rem; }
 .letter-rich-text ul, .letter-rich-text ol { margin: 0.75rem 0 0.9rem 1.35rem; }
 .letter-rich-text ul { list-style: disc; }

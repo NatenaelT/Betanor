@@ -1,5 +1,8 @@
--- Fix the letter reference allocator's ambiguous `period` identifier and give
--- administrators an explicit, draft-only delete capability.
+-- Keep letter allocation aligned with the workspace resolver used by the app.
+-- System staff roles may have a null profile.workspace_id; in that case use the
+-- first configured Betanor workspace instead of rejecting an otherwise valid
+-- staff request. All sequence identifiers remain qualified to avoid collisions
+-- with the RETURNS TABLE `period` output column.
 
 create or replace function public.allocate_letter_reference(
   p_workspace_id uuid,
@@ -15,7 +18,13 @@ declare
   prefix_value text := coalesce(nullif(trim(p_prefix), ''), 'BTNR/LET');
   sequence_value integer;
 begin
-  select profile.workspace_id
+  select coalesce(
+    profile.workspace_id,
+    (select workspace.id
+     from public.workspaces as workspace
+     order by workspace.created_at
+     limit 1)
+  )
     into actor_workspace
   from public.profiles as profile
   where profile.id = auth.uid()
@@ -66,38 +75,3 @@ begin
     sequence_value;
 end;
 $$;
-
-insert into public.permissions (code, module, description)
-values
-  ('letters.delete', 'letters', 'Delete draft letters as an administrator')
-on conflict (code) do update
-set module = excluded.module,
-    description = excluded.description;
-
-with role_permissions_seed(role_code, permission_code) as (
-  values
-    ('SUPER_ADMIN', 'letters.delete'),
-    ('ADMIN', 'letters.view_all'),
-    ('ADMIN', 'letters.archive'),
-    ('ADMIN', 'letters.delete')
-)
-insert into public.role_permissions (role_id, permission_id)
-select role.id, permission.id
-from role_permissions_seed
-join public.roles as role
-  on role.code = role_permissions_seed.role_code
- and role.workspace_id is null
- and role.role_type = 'staff'
-join public.permissions as permission
-  on permission.code = role_permissions_seed.permission_code
-on conflict do nothing;
-
-grant delete on public.letters to authenticated;
-
-drop policy if exists letters_delete on public.letters;
-create policy letters_delete on public.letters
-for delete to authenticated
-using (
-  status = 'DRAFT'
-  and private.has_permission('letters.delete', workspace_id)
-);
