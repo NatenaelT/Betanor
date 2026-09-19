@@ -39,3 +39,41 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   await createVersion(supabase, updated as unknown as LetterRecord, "EDITED", access.userId); await audit(supabase, access.workspaceId, id, "letter.edited", { status: (updated as unknown as LetterRecord).status });
   return NextResponse.json({ letter: updated });
 }
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const { supabase, access } = await letterAuth();
+  if (!access.workspaceId || !access.userId) return error("Authentication is required.", 401);
+  if (!access.permissions.has("letters.delete")) return error("Draft deletion permission is required.", 403);
+
+  const { letter, error: fetchError } = await getLetter(supabase, access.workspaceId, id);
+  if (fetchError) return error(fetchError.message);
+  if (!letter) return error("Letter not found.", 404);
+  if (letter.status !== "DRAFT") return error("Only draft letters can be deleted.", 409);
+
+  const { data: attachments, error: attachmentError } = await supabase
+    .from("letter_attachments")
+    .select("storage_path")
+    .eq("letter_id", id)
+    .is("deleted_at", null);
+  if (attachmentError) return error(attachmentError.message);
+
+  const storagePaths = (attachments ?? []).map((attachment) => attachment.storage_path).filter(Boolean);
+  if (storagePaths.length) {
+    const { error: storageError } = await supabase.storage.from("betanor-letters").remove(storagePaths);
+    if (storageError) return error(storageError.message, 502);
+  }
+
+  await audit(supabase, access.workspaceId, id, "letter.deleted", { reference_number: letter.reference_number });
+  const { data: deleted, error: deleteError } = await supabase
+    .from("letters")
+    .delete()
+    .eq("id", id)
+    .eq("workspace_id", access.workspaceId)
+    .eq("status", "DRAFT")
+    .select("id")
+    .maybeSingle();
+  if (deleteError) return error(deleteError.message, deleteError.code === "42501" ? 403 : 400);
+  if (!deleted) return error("The draft could not be deleted.", 409);
+  return NextResponse.json({ deleted: true, id });
+}
