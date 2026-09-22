@@ -17,7 +17,7 @@ The route map below records the target App Router surface. Public and core works
 | Content & docs | `/workspace/products`, `/workspace/services`, `/workspace/insights`, `/workspace/cms`, `/workspace/documents`, `/workspace/templates` | scoped staff |
 | Administration | `/workspace/admin/users`, `/workspace/admin/roles`, `/workspace/admin/departments`, `/workspace/admin/workflows`, `/workspace/admin/settings`, `/workspace/admin/audit-logs` | administrators |
 | Tender management | `/workspace/tenders`, `/workspace/tenders/[id]` | tender-scoped staff; guarantees, checklist, submission letter, and final snapshot follow RBAC |
-| Personal area | `/workspace/profile` | authenticated staff; own profile fields and private avatar |
+| Personal area | `/workspace/profile`, `/account/profile` | authenticated staff/customer; own profile fields and private avatar |
 | Employee access API | `/api/admin/employee-access` | HR/admin server boundary; invitation, reset, status, and provisioning actions |
 
 ## Support routes (planned, gated after Phase A)
