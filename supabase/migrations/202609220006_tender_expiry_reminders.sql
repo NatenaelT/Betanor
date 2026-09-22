@@ -23,6 +23,7 @@ declare
   event_id uuid;
   inserted_count integer := 0;
   recipient uuid;
+  days_before integer;
 begin
   for item in
     select guarantee.id as guarantee_id, guarantee.tender_id, guarantee.expiry_date,
@@ -30,13 +31,16 @@ begin
       guarantee.reference_number as guarantee_reference, guarantee.responsible_user_id,
       tender.owner_id
     from public.tender_guarantees guarantee
-    join public.tenders tender on tender.id = guarantee.tender_id
+    join public.tenders tender on tender.id is not distinct from guarantee.tender_id
     where guarantee.expiry_date is not null
       and guarantee.status not in ('RELEASED','RETURNED','EXPIRED','CANCELLED')
-      and (guarantee.expiry_date - current_date) in (14, 7, 3, 1)
   loop
-    insert into public.tender_reminder_events(tender_id, guarantee_id, reminder_kind, reminder_date, days_before)
-      values (item.tender_id, item.guarantee_id, 'GUARANTEE_EXPIRY', item.expiry_date, item.expiry_date - current_date)
+    days_before := extract(day from age(item.expiry_date, current_date));
+    if days_before not in (14, 7, 3, 1) then
+      continue;
+    end if;
+    insert into public.tender_reminder_events(tender_id, guarantee_id, reminder_kind, reminder_date, days_before, notified_at)
+      values (item.tender_id, item.guarantee_id, 'GUARANTEE_EXPIRY', item.expiry_date, days_before, current_timestamp)
       on conflict (guarantee_id, reminder_kind, reminder_date, days_before) do nothing
       returning id into event_id;
     if event_id is not null then
@@ -45,13 +49,11 @@ begin
         if recipient is not null then
           insert into public.notifications(recipient_id, type, title, body, entity_type, entity_id)
           select recipient, 'tender.guarantee_expiry', 'Tender guarantee expiring',
-            format('%s (%s) expires in %s day%s.', item.guarantee_reference, item.reference_number, item.expiry_date - current_date, case when item.expiry_date - current_date = 1 then '' else 's' end),
+            format('%s (%s) expires in %s days.', item.guarantee_reference, item.reference_number, days_before),
             'tender', item.tender_id
-          where exists (select 1 from public.profiles profile where profile.id = recipient and profile.is_active = true and profile.workspace_id = item.workspace_id);
+          where exists (select profile.id from public.profiles profile where profile.id is not distinct from recipient and profile.is_active and profile.workspace_id is not distinct from item.workspace_id);
         end if;
       end loop;
-      update public.tender_reminder_events set notified_at = now() where id = event_id;
-      inserted_count := inserted_count + 1;
     end if;
     event_id := null;
   end loop;
