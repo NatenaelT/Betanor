@@ -18,6 +18,7 @@ Implemented in Supabase on 15 September 2026 through the tracked migrations in `
 - `202609220003_tender_management.sql` adds tenders, submission requirements, CPO/bank guarantees, tender-task links, activity history, and immutable final submission snapshots with RLS.
 - `202609220004_profile_avatars.sql` adds the private `betanor-profile-avatars` Storage bucket and owner-scoped policies, reusing `profiles.avatar_path`.
 - `202609220005_tender_immutability.sql` adds database triggers preventing updates/deletes to a submitted tender, its checklist, guarantees, task links, or final submission snapshot.
+- `202609220006_tender_expiry_reminders.sql` adds idempotent reminder events and a security-definer function for 14/7/3/1-day guarantee notifications; it schedules Supabase `pg_cron` when that extension is enabled.
 
 The physical model uses `workspaces` as the tenant/company boundary, UUID primary keys, `timestamptz` audit timestamps, ISO-4217 currency codes, and `numeric(14,2)` money values. Every table in the exposed `public` schema has RLS enabled. Finance now exposes only permission-scoped reads and writes for categories, vendors, budgets, expenses, invoices, invoice lines, payments, and expense approvals; unrelated callers remain blocked. Invoices retain configurable VAT rate, tax amount, tax-inclusive flag, supplier/customer TIN and VAT registration values, place of supply, payment terms, and Ethiopian governing-law evidence. Approved records are management-finance data and do not replace statutory fiscal invoicing.
 

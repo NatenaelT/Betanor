@@ -16,7 +16,7 @@ Each workflow requires explicit state transitions, approval rules, notifications
 
 12. **Tender to final submission:** authorized staff create a tender → assign proposal/cost-proposal tasks → add mandatory requirements → request/issue CPO or bank guarantee records → prepare a linked official submission letter → complete the final checklist → authorized submitter confirms the immutable snapshot → tender moves to `SUBMITTED`. A second submission is rejected by the unique tender constraint; corrections use a new tender correspondence record or controlled tender amendment rather than rewriting the snapshot.
 
-13. **Tender security expiry:** guarantee issue/expiry and responsible staff are recorded against the tender → dashboard queries the indexed expiry window (14/7/3/1-day reminders are notification-job inputs) → in-app/email/Telegram events are queued asynchronously → release/return status and date are recorded without deleting the original security history.
+13. **Tender security expiry:** guarantee issue/expiry and responsible staff are recorded against the tender → the idempotent daily reminder function creates 14/7/3/1-day in-app notification events (and leaves email/Telegram delivery to the existing asynchronous notification workers) → release/return status and date are recorded without deleting the original security history.
 
 ## Cross-workflow controls
 
