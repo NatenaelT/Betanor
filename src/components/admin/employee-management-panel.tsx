@@ -24,13 +24,16 @@ export type EmployeeAdminRecord = {
   employment_status: string | null;
   contract_title: string;
   salary_amount: number | null;
+  access_status: string | null;
+  access_provisioning_method: string | null;
+  access_profile_id: string | null;
 };
 
-type Props = { departments: Option[]; positions: Option[]; profiles: Option[]; managers: Option[]; employees: EmployeeAdminRecord[]; canManage: boolean };
+type Props = { departments: Option[]; positions: Option[]; profiles: Option[]; managers: Option[]; roles: Option[]; employees: EmployeeAdminRecord[]; canManage: boolean };
 
-const emptyForm = { firstName: "", lastName: "", profileId: "", workEmail: "", workPhone: "", hireDate: "", probationEndDate: "", departmentId: "", positionId: "", managerId: "", employmentType: "full_time", salary: "", contractTitle: "Employment contract", employmentStatus: "active" };
+const emptyForm = { firstName: "", lastName: "", profileId: "", workEmail: "", workPhone: "", hireDate: "", probationEndDate: "", departmentId: "", positionId: "", managerId: "", employmentType: "full_time", salary: "", contractTitle: "Employment contract", employmentStatus: "active", createSystemAccess: false, loginEmail: "", provisioningMethod: "invite", temporaryPassword: "", roleCode: "EMPLOYEE" };
 
-export function EmployeeManagementPanel({ departments, positions, profiles, managers, employees, canManage }: Props) {
+export function EmployeeManagementPanel({ departments, positions, profiles, managers, roles, employees, canManage }: Props) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -42,7 +45,7 @@ export function EmployeeManagementPanel({ departments, positions, profiles, mana
   function startCreate() { setEditingId(null); setForm({ ...emptyForm }); setError(null); setNotice(null); setOpen(true); }
   function startEdit(employee: EmployeeAdminRecord) {
     setEditingId(employee.id);
-    setForm({ firstName: employee.first_name, lastName: employee.last_name, profileId: employee.profile_id ?? "", workEmail: employee.work_email ?? "", workPhone: employee.work_phone ?? "", hireDate: employee.hire_date ?? "", probationEndDate: employee.probation_end_date ?? "", departmentId: employee.department_id ?? "", positionId: employee.position_id ?? "", managerId: employee.manager_id ?? "", employmentType: employee.employment_type ?? "full_time", salary: employee.salary_amount ? String(employee.salary_amount) : "", contractTitle: employee.contract_title || "Employment contract", employmentStatus: employee.employment_status ?? "active" });
+    setForm({ firstName: employee.first_name, lastName: employee.last_name, profileId: employee.profile_id ?? "", workEmail: employee.work_email ?? "", workPhone: employee.work_phone ?? "", hireDate: employee.hire_date ?? "", probationEndDate: employee.probation_end_date ?? "", departmentId: employee.department_id ?? "", positionId: employee.position_id ?? "", managerId: employee.manager_id ?? "", employmentType: employee.employment_type ?? "full_time", salary: employee.salary_amount ? String(employee.salary_amount) : "", contractTitle: employee.contract_title || "Employment contract", employmentStatus: employee.employment_status ?? "active", createSystemAccess: !employee.profile_id, loginEmail: employee.work_email ?? "", provisioningMethod: "invite", temporaryPassword: "", roleCode: "EMPLOYEE" });
     setError(null); setNotice(null); setOpen(true);
   }
   function close() { if (!saving) setOpen(false); }
@@ -50,12 +53,27 @@ export function EmployeeManagementPanel({ departments, positions, profiles, mana
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true); setError(null); setNotice(null);
     try {
-      const response = await fetch("/api/admin/employees", { method: editingId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, id: editingId, salary: form.salary ? Number(form.salary) : 0 }) });
+      const accessPayload = { action: "provision_employee", email: form.loginEmail || form.workEmail, fullName: `${form.firstName} ${form.lastName}`.trim(), phone: form.workPhone, roleCode: form.roleCode, provisioningMethod: form.provisioningMethod, password: form.temporaryPassword, employee: { employeeId: editingId, firstName: form.firstName, lastName: form.lastName, workEmail: form.workEmail, workPhone: form.workPhone, hireDate: form.hireDate, probationEndDate: form.probationEndDate, departmentId: form.departmentId, positionId: form.positionId, managerId: form.managerId, employmentType: form.employmentType, employmentStatus: form.employmentStatus } };
+      const response = !editingId && form.createSystemAccess || editingId && form.createSystemAccess && !form.profileId
+        ? await fetch("/api/admin/employee-access", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(accessPayload) })
+        : await fetch("/api/admin/employees", { method: editingId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, id: editingId, salary: form.salary ? Number(form.salary) : 0 }) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Could not save employee.");
       setNotice(editingId ? "Employee updated." : `Employee created with ID ${payload.employee?.employee_number || "generated by Supabase"}.`);
       setOpen(false); window.location.reload();
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save employee."); }
+    finally { setSaving(false); }
+  }
+
+  async function accessAction(employee: EmployeeAdminRecord, action: string, status?: string) {
+    setSaving(true); setError(null); setNotice(null);
+    try {
+      const response = await fetch("/api/admin/employee-access", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "employee_access", accessAction: action, employeeId: employee.id, status }) });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not update employee access.");
+      setNotice(action === "resend_invite" ? "Invitation sent." : action === "send_password_reset" ? "Password reset email requested." : "Access status updated.");
+      window.location.reload();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not update employee access."); }
     finally { setSaving(false); }
   }
 
@@ -91,8 +109,9 @@ export function EmployeeManagementPanel({ departments, positions, profiles, mana
       <div><FieldLabel htmlFor="employee-salary">Monthly salary (ETB)</FieldLabel><Input id="employee-salary" min="0" step="0.01" type="number" value={form.salary} onChange={(event) => field("salary", event.target.value)} /></div>
       <div><FieldLabel htmlFor="employee-contract">Contract title</FieldLabel><Input id="employee-contract" value={form.contractTitle} onChange={(event) => field("contractTitle", event.target.value)} /></div>
       <div><FieldLabel htmlFor="employee-status">Employment status</FieldLabel><select id="employee-status" value={form.employmentStatus} onChange={(event) => field("employmentStatus", event.target.value)} className="min-h-10 w-full rounded-lg border border-[var(--betanor-border)] bg-white px-3 text-sm"><option value="active">Active</option><option value="on_leave">On leave</option><option value="inactive">Inactive</option><option value="archived">Archived</option></select></div>
+      <div className="md:col-span-2 rounded-xl border border-[var(--betanor-border)] bg-slate-50 p-4"><label className="flex items-start gap-3 text-sm font-semibold text-[var(--betanor-navy)]"><input type="checkbox" checked={form.createSystemAccess} disabled={Boolean(form.profileId)} onChange={(event) => setForm((current) => ({ ...current, createSystemAccess: event.target.checked }))} className="mt-1"/><span>Create system access for this employee<span className="mt-1 block text-xs font-normal leading-5 text-[var(--betanor-muted)]">The employee record and authenticated account are linked server-side. Passwords are never stored in Betanor tables.</span></span></label>{form.createSystemAccess && !form.profileId ? <div className="mt-4 grid gap-4 md:grid-cols-2"><div><FieldLabel required htmlFor="employee-login-email">Login email</FieldLabel><Input id="employee-login-email" type="email" required value={form.loginEmail} onChange={(event) => field("loginEmail", event.target.value)} /></div><div><FieldLabel required htmlFor="employee-role">Initial role</FieldLabel><select id="employee-role" required value={form.roleCode} onChange={(event) => field("roleCode", event.target.value)} className="min-h-10 w-full rounded-lg border border-[var(--betanor-border)] bg-white px-3 text-sm">{roles.map((role) => <option key={role.id} value={role.id}>{role.label}</option>)}</select></div><div><FieldLabel required htmlFor="employee-provisioning">Provisioning method</FieldLabel><select id="employee-provisioning" value={form.provisioningMethod} onChange={(event) => field("provisioningMethod", event.target.value)} className="min-h-10 w-full rounded-lg border border-[var(--betanor-border)] bg-white px-3 text-sm"><option value="invite">Send secure invitation</option><option value="temporary_password">Admin temporary password</option></select></div>{form.provisioningMethod === "temporary_password" ? <div><FieldLabel required htmlFor="employee-temp-password">Temporary password</FieldLabel><Input id="employee-temp-password" type="password" minLength={8} required value={form.temporaryPassword} onChange={(event) => field("temporaryPassword", event.target.value)} /><p className="mt-1 text-xs text-[var(--betanor-muted)]">At least 8 characters. The employee must change it after first login.</p></div> : <p className="self-end text-xs leading-5 text-[var(--betanor-muted)]">The invitation link uses Supabase Auth and the configured Betanor SMTP sender.</p>}</div> : null}</div>
       <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--betanor-border)] pt-4"><span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-900">Standard schedule: Monday–Friday · 8 hours/day · 40 hours/week</span><div className="flex gap-2"><Button type="button" variant="outline" onClick={close}>Cancel</Button><Button type="submit" disabled={saving}>{saving ? "Saving…" : editingId ? "Save changes" : "Create employee"}</Button></div></div>
     </form></Modal> : null}
-    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{employees.map((employee) => <Card key={employee.id} className="p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-[var(--betanor-navy)]">{employee.first_name} {employee.last_name}</p><p className="mt-1 text-xs text-[var(--betanor-muted)]">{employee.contract_title || "Employee"} · {employee.employment_status}</p></div><div className="flex gap-1"><Button variant="ghost" size="sm" onClick={() => startEdit(employee)}>Edit</Button><Button variant="ghost" size="sm" onClick={() => void remove(employee)}>Delete</Button></div></div><p className="mt-2 text-xs text-[var(--betanor-muted)]">{employee.work_email || "No work email"}</p></Card>)}</div>
+    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{employees.map((employee) => <Card key={employee.id} className="p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-[var(--betanor-navy)]">{employee.first_name} {employee.last_name}</p><p className="mt-1 text-xs text-[var(--betanor-muted)]">{employee.contract_title || "Employee"} · {employee.employment_status}</p></div><div className="flex gap-1"><Button variant="ghost" size="sm" onClick={() => startEdit(employee)}>Edit</Button><Button variant="ghost" size="sm" onClick={() => void remove(employee)}>Delete</Button></div></div><p className="mt-2 text-xs text-[var(--betanor-muted)]">{employee.work_email || "No work email"}</p><div className="mt-3 border-t border-[var(--betanor-border)] pt-3"><p className="text-xs font-semibold text-[var(--betanor-navy)]">System access: {employee.access_status?.replaceAll("_", " ") || "Not provisioned"}</p>{employee.profile_id ? <div className="mt-2 flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={saving} onClick={() => void accessAction(employee, "resend_invite")}>Resend invite</Button><Button variant="outline" size="sm" disabled={saving} onClick={() => void accessAction(employee, "send_password_reset")}>Reset password</Button><select aria-label={`Access status for ${employee.first_name} ${employee.last_name}`} disabled={saving} value={employee.access_status || "active"} onChange={(event) => void accessAction(employee, "set_status", event.target.value)} className="min-h-8 rounded-lg border border-[var(--betanor-border)] bg-white px-2 text-xs"><option value="pending_activation">Pending activation</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="disabled">Disabled</option><option value="employment_ended">Employment ended</option></select></div> : <p className="mt-1 text-xs text-[var(--betanor-muted)]">Open Edit and enable system access to invite this employee.</p>}</div></Card>)}</div>
   </>;
 }

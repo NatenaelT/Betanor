@@ -29,13 +29,16 @@ export default async function EmployeesPage() {
   const { data: fallbackWorkspaces } = !profileData?.workspace_id ? await supabase.from("workspaces").select("id").limit(1) : { data: [] };
   const workspaceId = profileData?.workspace_id ?? fallbackWorkspaces?.[0]?.id;
 
-  const [departments, positions, profiles, employees] = await Promise.all([
+  const [departments, positions, profiles, roles, employees, accessRows] = await Promise.all([
     workspaceId ? supabase.from("departments").select("id,name,code").eq("workspace_id", workspaceId).order("name") : Promise.resolve({ data: [] as never[] }),
     workspaceId ? supabase.from("positions").select("id,title,code").eq("workspace_id", workspaceId).order("title") : Promise.resolve({ data: [] as never[] }),
     workspaceId ? supabase.from("profiles").select("id,full_name,job_title,workspace_id").order("full_name") : Promise.resolve({ data: [] as never[] }),
+    workspaceId ? supabase.from("roles").select("code,name").is("workspace_id", null).eq("role_type", "staff").eq("is_system", true).order("name") : Promise.resolve({ data: [] as never[] }),
     workspaceId ? supabase.from("employees").select("id,profile_id,employee_number,first_name,last_name,work_email,work_phone,hire_date,employment_status,employment_type,probation_end_date,department_id,position_id,manager_id,work_hours_per_day,work_days_per_week,departments(name),positions(title),employment_contracts(id,title,starts_on,ends_on,salary_amount,currency_code,status)").eq("workspace_id", workspaceId).order("hire_date", { ascending: false }) : Promise.resolve({ data: [] as never[] }),
+    workspaceId ? supabase.from("employee_access").select("employee_id,profile_id,access_status,provisioning_method").eq("workspace_id", workspaceId) : Promise.resolve({ data: [] as never[] }),
   ]);
   const rows = employees.data ?? [];
+  const accessByEmployee = new Map((accessRows.data ?? []).map((access) => [access.employee_id, access]));
   const managerNames = new Map(rows.map((employee) => [employee.id, `${employee.first_name} ${employee.last_name}`]));
 
   return <main className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
@@ -45,7 +48,8 @@ export default async function EmployeesPage() {
       positions={(positions.data ?? []).map((position) => ({ id: position.id, label: `${position.title}${position.code ? ` · ${position.code}` : ""}` }))}
       profiles={(profiles.data ?? []).map((profile) => ({ id: profile.id, label: `${profile.full_name || "Unnamed profile"}${profile.job_title ? ` · ${profile.job_title}` : ""}` }))}
       managers={rows.map((employee) => ({ id: employee.id, label: `${employee.first_name} ${employee.last_name} · ${employee.employee_number}` }))}
-      employees={rows.map((employee) => { const contracts = employee.employment_contracts ?? []; const currentContract = [...contracts].sort((a, b) => String(b.starts_on).localeCompare(String(a.starts_on)))[0]; return { id: employee.id, profile_id: employee.profile_id, first_name: employee.first_name, last_name: employee.last_name, work_email: employee.work_email, work_phone: employee.work_phone, hire_date: employee.hire_date, probation_end_date: employee.probation_end_date, department_id: employee.department_id, position_id: employee.position_id, manager_id: employee.manager_id, employment_type: employee.employment_type, employment_status: employee.employment_status, contract_title: currentContract?.title || "Employment contract", salary_amount: currentContract?.salary_amount ? Number(currentContract.salary_amount) : null } as EmployeeAdminRecord; })}
+      roles={(roles.data ?? []).map((role) => ({ id: role.code, label: role.name }))}
+      employees={rows.map((employee) => { const contracts = employee.employment_contracts ?? []; const currentContract = [...contracts].sort((a, b) => String(b.starts_on).localeCompare(String(a.starts_on)))[0]; const access = accessByEmployee.get(employee.id); return { id: employee.id, profile_id: employee.profile_id, first_name: employee.first_name, last_name: employee.last_name, work_email: employee.work_email, work_phone: employee.work_phone, hire_date: employee.hire_date, probation_end_date: employee.probation_end_date, department_id: employee.department_id, position_id: employee.position_id, manager_id: employee.manager_id, employment_type: employee.employment_type, employment_status: employee.employment_status, contract_title: currentContract?.title || "Employment contract", salary_amount: currentContract?.salary_amount ? Number(currentContract.salary_amount) : null, access_status: access?.access_status ?? null, access_provisioning_method: access?.provisioning_method ?? null, access_profile_id: access?.profile_id ?? null } as EmployeeAdminRecord; })}
       canManage={access.permissions.has("hr.manage") || access.permissions.has("users.manage")}
     /> : <Card className="mt-8 p-6">Employee access is required for this workspace.</Card>}
     <div className="mt-10 flex items-center justify-between"><div><h2 className="text-xl font-semibold text-[var(--betanor-navy)]">All employees</h2><p className="mt-1 text-sm text-[var(--betanor-muted)]">{rows.length} profile{rows.length === 1 ? "" : "s"} in this workspace.</p></div></div>

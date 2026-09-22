@@ -17,3 +17,33 @@ Each workflow requires explicit state transitions, approval rules, notifications
 ## Cross-workflow controls
 
 Use an approval policy engine with amount, department, project, data sensitivity, and delegation inputs. Every side effect is idempotent, recorded through the outbox, and visible in an audit timeline.
+
+## Updated employee registration and account provisioning (Phase A)
+
+1. HR/Admin opens **People → Employees → New employee** and records HR data (name, work email, department, position, manager, start date, employment type and contract details).
+2. If **Create system access** is selected, the server validates the work email, staff role, and caller permission. The browser never creates Auth users directly.
+3. For **Invite employee**, the Edge Function calls Supabase Auth invitation delivery. For **Temporary password**, it creates an Auth user with a minimum eight-character password and sets `profiles.password_change_required = true`; the password is never written to Betanor tables.
+4. The function creates/links the `profiles` row, assigns the database role and permission overrides, creates/links the `employees` row, and writes `employee_access`. It generates the employee number through the database trigger. Failure removes newly-created Auth/employee records before returning an error.
+5. The employee activates the invitation or signs in with the temporary password. Temporary-password accounts are redirected to `/account/change-password` and cannot continue until the flag is cleared.
+6. HR/Admin can resend an invitation, request a password reset, change role/department/manager, or set access to `active`, `suspended`, `disabled`, or `employment_ended`. Suspension/disable/end bans Auth and marks the profile inactive; historical work is retained.
+7. Every provision, invitation, reset request, status change, role change, and deletion writes an `audit_events` record. No administrator can view a current password.
+
+## Support workflow (planned Phases B–H)
+
+### Guest request to ticket
+
+Guest/customer submits the minimal **Get IT Support** form or chat → server validates/rate-limits and generates `BTNR-SUP-YYYY-XXXXX` → customer receives acknowledgement → support triages and creates `BTNR-TKT-YYYY-XXXXX` → an asynchronous notification event reaches the support team. Guest access is token-scoped and never exposes the staff workspace.
+
+### Ticket to resolution
+
+Ticket is acknowledged → assigned to a support team/technician → technician and customer exchange realtime messages and private attachments → ticket may schedule remote, video, phone, or on-site support → SLA/escalation timers create notification events → technician records resolution → customer confirms/rates → ticket closes. Internal notes remain staff-only.
+
+### Video support
+
+Authorized participant requests video → server checks ticket membership and creates a short-lived provider token/room → customer and technician join through a dynamically loaded WebRTC/provider adapter → call metadata is linked to the ticket after completion. Recording is off by default and requires separate consent/policy.
+
+### Notifications
+
+Business transaction commits → durable notification event is created → in-app delivery uses scoped Supabase Realtime; email/Telegram/push workers deliver asynchronously with retry and idempotency. A slow provider never blocks ticket save, employee provisioning, or status transitions.
+
+Phase B–H will not be started until Phase A checks and acceptance are complete.

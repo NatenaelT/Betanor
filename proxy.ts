@@ -5,7 +5,11 @@ import { refreshAuthSession } from "@/lib/supabase/proxy";
 export async function proxy(request: NextRequest) {
   const { response, hasAuthenticatedUser } = await refreshAuthSession(request);
 
-  if (!hasAuthenticatedUser && request.nextUrl.pathname.startsWith("/workspace")) {
+  const requiresAuthentication =
+    request.nextUrl.pathname.startsWith("/workspace") ||
+    request.nextUrl.pathname === "/account/change-password";
+
+  if (!hasAuthenticatedUser && requiresAuthentication) {
     const redirectUrl = new URL("/login", request.url);
     redirectUrl.searchParams.set("next", request.nextUrl.pathname);
     const redirectResponse = NextResponse.redirect(redirectUrl);

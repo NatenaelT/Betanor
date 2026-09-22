@@ -27,6 +27,14 @@ The current implementation centralizes the initial palette in `src/app/globals.c
 
 The approved `Betanor Logo_V1.0.png` is now used by `BetanorMark` in the public and workspace navigation. It is stored as `public/betanor-logo-v1.png` without modification. Obtain an approved SVG or reversed logo variant before any high-resolution print use or dark-background treatment where the white PNG canvas would be unsuitable.
 
+## Employee access and support UX rules
+
+- Employee registration is a two-part form: HR record first, optional system-access panel second. The panel clearly states that passwords are never stored and offers invitation or temporary-password provisioning.
+- Access status is visible as a compact badge with explicit actions (resend invitation, reset password, activate, suspend, disable, employment ended). Destructive or irreversible employment actions require confirmation and preserve historical records.
+- Support customer screens stay mobile-first and minimal: create request, status, reply, attach screenshot, appointment, and join video. Internal fields, SLA rules, assignments, and notes remain in the staff workspace.
+- Realtime states use the same status tokens as chat (`online`, `typing`, `seen`, `waiting`, `breached`) and always include a non-realtime fallback state for slow connections.
+- Heavy rich-text, PDF, and video code is dynamically loaded at the point of use; list pages must not pay the bundle cost for editor/video features.
+
 ## Brand intake required
 
 Obtain source logo variants (SVG preferred), letterhead, brand guide, approved colors/fonts, imagery policy, and document/PDF examples. Record asset provenance and licenses. Do not extract a logo from low-resolution letterhead if a vector master is available.

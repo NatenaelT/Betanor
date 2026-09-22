@@ -1,5 +1,5 @@
 export function safeAuthNextPath(value: string | undefined) {
-  return value?.startsWith("/workspace") || value?.startsWith("/portal") || value?.startsWith("/customer/onboard") || value?.startsWith("/rfq") ? value : "/portal";
+  return value?.startsWith("/workspace") || value?.startsWith("/portal") || value?.startsWith("/customer/onboard") || value?.startsWith("/rfq") || value?.startsWith("/account/change-password") ? value : "/portal";
 }
 
 export function destinationForAccount(accountType: string | null | undefined, requestedPath: string, hasStaffRole = false) {

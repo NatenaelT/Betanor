@@ -2,7 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.116.0";
 
 type AccountType = "staff" | "customer";
-type Action = "list" | "create" | "update" | "delete";
+type Action = "list" | "create" | "update" | "delete" | "provision_employee" | "employee_access";
+type AccessStatus = "pending_activation" | "active" | "suspended" | "disabled" | "employment_ended";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,7 +31,10 @@ function safeError(error: unknown) {
 }
 
 function passwordIsStrong(password: string) {
-  return password.length >= 10 && /[A-Za-z]/.test(password) && /\d/.test(password);
+  // Betanor's baseline is length and breach protection, not arbitrary
+  // composition rules. Supabase Auth remains responsible for hashing and
+  // credential storage; this function never persists a password.
+  return password.length >= 8 && password.length <= 256;
 }
 
 async function firstWorkspace(admin: ReturnType<typeof createClient>) {
@@ -39,7 +43,7 @@ async function firstWorkspace(admin: ReturnType<typeof createClient>) {
   return data.id as string;
 }
 
-async function callerContext(admin: ReturnType<typeof createClient>, callerId: string) {
+async function callerContext(admin: ReturnType<typeof createClient>, callerId: string, mode: "users" | "employees" = "users") {
   const { data: profile, error: profileError } = await admin
     .from("profiles")
     .select("id,workspace_id,is_active,account_type,full_name,email_address")
@@ -65,7 +69,8 @@ async function callerContext(admin: ReturnType<typeof createClient>, callerId: s
     const relation = row.permissions as unknown as { code?: string } | { code?: string }[] | null;
     return (Array.isArray(relation) ? relation[0]?.code : relation?.code) === "users.manage";
   });
-  const hasRolePermission = roles.some((role) => role.role_type === "staff" && ["SUPER_ADMIN", "ADMIN"].includes(role.code));
+  const allowedRoles = mode === "employees" ? ["SUPER_ADMIN", "ADMIN", "HR_MANAGER", "HR_STAFF"] : ["SUPER_ADMIN", "ADMIN"];
+  const hasRolePermission = roles.some((role) => role.role_type === "staff" && allowedRoles.includes(role.code));
   const canManage = usersOverride ? Boolean(usersOverride.is_allowed) : hasRolePermission;
   if (!canManage) fail("You need the users.manage permission to manage accounts.", 403);
   return { workspaceId, roles };
@@ -143,15 +148,116 @@ async function writeEmployee(admin: ReturnType<typeof createClient>, userId: str
   const fullName = clean(input.fullName).split(/\s+/).filter(Boolean);
   const firstName = clean(employee.firstName) || fullName.shift() || "Betanor";
   const lastName = clean(employee.lastName) || fullName.join(" ") || "Staff";
-  const { data: existing } = await admin.from("employees").select("id").eq("profile_id", userId).limit(1).maybeSingle();
-  const payload = { workspace_id: workspaceId, profile_id: userId, employee_number: `BET-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`, first_name: firstName, last_name: lastName, work_email: clean(input.email).toLowerCase() || null, work_phone: clean(input.phone) || null, hire_date: clean(employee.hireDate) || null, employment_status: "active", employment_type: "full_time", work_hours_per_day: 8, work_days_per_week: 5 };
+  const requestedEmployeeId = clean(employee.employeeId);
+  const { data: existing } = requestedEmployeeId
+    ? await admin.from("employees").select("id,profile_id").eq("id", requestedEmployeeId).eq("workspace_id", workspaceId).maybeSingle()
+    : await admin.from("employees").select("id,profile_id").eq("profile_id", userId).limit(1).maybeSingle();
+  if (requestedEmployeeId && !existing?.id) fail("The selected employee record does not belong to this workspace.", 400);
+  if (existing?.profile_id && existing.profile_id !== userId) fail("That employee is already linked to another account.", 409);
+  const payload = { workspace_id: workspaceId, profile_id: userId, first_name: firstName, last_name: lastName, work_email: clean(input.email).toLowerCase() || null, work_phone: clean(input.phone) || null, hire_date: clean(employee.hireDate) || null, department_id: clean(employee.departmentId) || null, position_id: clean(employee.positionId) || null, manager_id: clean(employee.managerId) || null, employment_status: clean(employee.employmentStatus) || "active", employment_type: clean(employee.employmentType) || "full_time", work_hours_per_day: 8, work_days_per_week: 5 };
   if (existing?.id) {
-    const { error } = await admin.from("employees").update({ workspace_id: workspaceId, profile_id: userId, first_name: firstName, last_name: lastName, work_email: payload.work_email, work_phone: payload.work_phone, hire_date: payload.hire_date, employment_status: "active", employment_type: "full_time", work_hours_per_day: 8, work_days_per_week: 5, updated_at: new Date().toISOString() }).eq("id", existing.id);
+    const { error } = await admin.from("employees").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", existing.id);
     if (error) fail("Could not update the employee record.", 500);
   } else {
     const { error } = await admin.from("employees").insert(payload);
-    if (error) fail("Could not create the employee record.", 500);
+    if (error) fail(error.message || "Could not create the employee record.", 500);
   }
+}
+
+async function provisionEmployee(admin: ReturnType<typeof createClient>, workspaceId: string, actorId: string, input: Record<string, unknown>, role: { id: string; code: string }) {
+  const employee = (input.employee ?? {}) as Record<string, unknown>;
+  const email = clean(input.email || employee.workEmail).toLowerCase();
+  const fullName = clean(input.fullName) || `${clean(employee.firstName)} ${clean(employee.lastName)}`.trim();
+  const method = clean(input.provisioningMethod) === "temporary_password" ? "temporary_password" : "invite";
+  const temporaryPassword = clean(input.password);
+  if (!email || !email.includes("@") || !fullName) fail("Employee name and a valid work email are required.");
+  if (method === "temporary_password" && !passwordIsStrong(temporaryPassword)) fail("The temporary password must be at least 8 characters.");
+
+  let authUserId: string | null = null;
+  let employeeId: string | null = clean(employee.employeeId) || null;
+  let createdEmployeeRecord = false;
+  try {
+    const userResult = method === "invite"
+      ? await admin.auth.admin.inviteUserByEmail(email, { data: { full_name: fullName, account_type: "staff" }, ...(clean(input.redirectTo) ? { redirectTo: clean(input.redirectTo) } : {}) })
+      : await admin.auth.admin.createUser({ email, password: temporaryPassword, email_confirm: true, user_metadata: { full_name: fullName, account_type: "staff" } });
+    if (userResult.error || !userResult.data.user) fail(userResult.error?.message || "Could not create the Supabase Auth account.", 400);
+    authUserId = userResult.data.user.id;
+
+    const { data: existingEmployee } = employeeId
+      ? await admin.from("employees").select("id,profile_id,workspace_id").eq("id", employeeId).maybeSingle()
+      : await admin.from("employees").select("id,profile_id,workspace_id").eq("workspace_id", workspaceId).eq("work_email", email).maybeSingle();
+    if (existingEmployee?.workspace_id && existingEmployee.workspace_id !== workspaceId) fail("The employee belongs to another workspace.", 403);
+    if (existingEmployee?.profile_id && existingEmployee.profile_id !== authUserId) fail("That employee is already linked to another account.", 409);
+    employeeId = existingEmployee?.id ?? employeeId;
+
+    const profileUpdate = { workspace_id: workspaceId, full_name: fullName, job_title: clean(input.jobTitle) || null, phone_e164: clean(input.phone || employee.workPhone) || null, email_address: email, account_type: "staff", is_active: true, password_change_required: method === "temporary_password", updated_at: new Date().toISOString() };
+    const { error: profileError } = await admin.from("profiles").update(profileUpdate).eq("id", authUserId);
+    if (profileError) fail("Could not create the application profile.", 500);
+
+    await writeRole(admin, authUserId, role.id, actorId);
+    await writePermissions(admin, authUserId, actorId, input.permissionOverrides);
+    await writeEmployee(admin, authUserId, workspaceId, { ...input, email, employee: { ...employee, employeeId } });
+    if (!employeeId) {
+      const { data: createdEmployee } = await admin.from("employees").select("id").eq("profile_id", authUserId).maybeSingle();
+      employeeId = createdEmployee?.id ?? null;
+      createdEmployeeRecord = Boolean(employeeId);
+    }
+    if (!employeeId) fail("The employee record could not be linked to the Auth account.", 500);
+
+    const accessStatus: AccessStatus = method === "invite" ? "pending_activation" : "active";
+    const now = new Date().toISOString();
+    const { error: accessError } = await admin.from("employee_access").upsert({ workspace_id: workspaceId, employee_id: employeeId, profile_id: authUserId, access_status: accessStatus, provisioning_method: method, must_change_password: method === "temporary_password", invited_at: method === "invite" ? now : null, last_invitation_at: method === "invite" ? now : null, activated_at: method === "temporary_password" ? now : null, created_by: actorId, updated_by: actorId, updated_at: now }, { onConflict: "employee_id" });
+    if (accessError) fail("Could not save the employee access lifecycle.", 500);
+    await audit(admin, workspaceId, actorId, authUserId, "employee_access_provisioned", { employee_id: employeeId, method, access_status: accessStatus, role: role.code });
+    return { userId: authUserId, employeeId, method, accessStatus, role: role.code };
+  } catch (error) {
+    if (employeeId && createdEmployeeRecord) await admin.from("employees").delete().eq("id", employeeId).eq("profile_id", authUserId);
+    if (authUserId) await admin.auth.admin.deleteUser(authUserId);
+    throw error;
+  }
+}
+
+async function updateEmployeeAccess(admin: ReturnType<typeof createClient>, workspaceId: string, actorId: string, input: Record<string, unknown>) {
+  const employeeId = clean(input.employeeId);
+  if (!employeeId) fail("An employee is required.");
+  const { data: access, error: accessError } = await admin.from("employee_access").select("id,employee_id,profile_id,access_status,provisioning_method").eq("employee_id", employeeId).eq("workspace_id", workspaceId).maybeSingle();
+  if (accessError || !access) fail("This employee does not have a provisioned system account.", 404);
+  const action = clean(input.accessAction) as "set_status" | "resend_invite" | "send_password_reset";
+  const { data: user } = await admin.auth.admin.getUserById(access.profile_id);
+  const email = user.user?.email;
+  if (!email) fail("The employee account has no email address.", 400);
+  if (action === "resend_invite") {
+    const invite = await admin.auth.admin.inviteUserByEmail(email, { data: { full_name: user.user?.user_metadata?.full_name ?? email, account_type: "staff" }, ...(clean(input.redirectTo) ? { redirectTo: clean(input.redirectTo) } : {}) });
+    if (invite.error) fail(invite.error.message, 400);
+    const now = new Date().toISOString();
+    await admin.from("employee_access").update({ access_status: "pending_activation", last_invitation_at: now, invited_at: access.access_status === "pending_activation" ? undefined : now, updated_by: actorId, updated_at: now }).eq("id", access.id);
+    await admin.from("profiles").update({ is_active: true, updated_at: now }).eq("id", access.profile_id);
+    await audit(admin, workspaceId, actorId, access.profile_id, "employee_invitation_resent", { employee_id: employeeId });
+    return { ok: true, accessStatus: "pending_activation" };
+  }
+  if (action === "send_password_reset") {
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!anonKey) fail("Supabase password reset delivery is not configured.", 500);
+    const publicClient = createClient(Deno.env.get("SUPABASE_URL")!, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
+    const reset = await publicClient.auth.resetPasswordForEmail(email, { redirectTo: clean(input.redirectTo) || undefined });
+    if (reset.error) fail(reset.error.message, 400);
+    await audit(admin, workspaceId, actorId, access.profile_id, "employee_password_reset_requested", { employee_id: employeeId });
+    return { ok: true };
+  }
+  if (action === "set_status") {
+    const status = clean(input.status) as AccessStatus;
+    if (!["pending_activation", "active", "suspended", "disabled", "employment_ended"].includes(status)) fail("Unsupported access status.");
+    const now = new Date().toISOString();
+    const active = status === "active" || status === "pending_activation";
+    const authUpdate = await admin.auth.admin.updateUserById(access.profile_id, { ban_duration: active ? "none" : "876000h" });
+    if (authUpdate.error) fail(authUpdate.error.message, 400);
+    const { error } = await admin.from("employee_access").update({ access_status: status, must_change_password: status === "active" ? access.provisioning_method === "temporary_password" : false, suspended_at: status === "suspended" ? now : null, disabled_at: status === "disabled" ? now : null, employment_ended_at: status === "employment_ended" ? now : null, updated_by: actorId, updated_at: now }).eq("id", access.id);
+    if (error) fail("Could not update employee access status.", 500);
+    await admin.from("profiles").update({ is_active: active, updated_at: now }).eq("id", access.profile_id);
+    await audit(admin, workspaceId, actorId, access.profile_id, "employee_access_status_changed", { employee_id: employeeId, status });
+    return { ok: true, accessStatus: status };
+  }
+  fail("Unsupported employee access action.");
 }
 
 async function audit(admin: ReturnType<typeof createClient>, workspaceId: string, actorId: string, targetId: string | null, action: string, payload: Record<string, unknown>) {
@@ -163,19 +269,21 @@ async function listUsers(admin: ReturnType<typeof createClient>) {
   if (authError) fail("Could not list Auth users.", 500);
   const users = authPage.users ?? [];
   const ids = users.map((user) => user.id);
-  const [{ data: profiles }, { data: assignments }, { data: overrides }] = await Promise.all([
+  const [{ data: profiles }, { data: assignments }, { data: overrides }, { data: employeeAccess }] = await Promise.all([
     ids.length ? admin.from("profiles").select("id,workspace_id,full_name,job_title,phone_e164,email_address,is_active,account_type,created_at,updated_at").in("id", ids) : Promise.resolve({ data: [] as never[] }),
     ids.length ? admin.from("user_roles").select("user_id,roles(id,code,name,role_type)").in("user_id", ids) : Promise.resolve({ data: [] as never[] }),
     ids.length ? admin.from("user_permissions").select("user_id,is_allowed,assigned_at,permissions(code,module,description)").in("user_id", ids) : Promise.resolve({ data: [] as never[] }),
+    ids.length ? admin.from("employee_access").select("profile_id,employee_id,access_status,provisioning_method,must_change_password,invited_at,activated_at,last_invitation_at,updated_at").in("profile_id", ids) : Promise.resolve({ data: [] as never[] }),
   ]);
   const profilesById = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
   const rolesById = new Map<string, unknown>();
   for (const assignment of assignments ?? []) rolesById.set(assignment.user_id, Array.isArray(assignment.roles) ? assignment.roles[0] : assignment.roles);
   const overridesById = new Map<string, unknown[]>();
   for (const override of overrides ?? []) overridesById.set(override.user_id, [...(overridesById.get(override.user_id) ?? []), override]);
+  const employeeAccessByProfileId = new Map((employeeAccess ?? []).map((access) => [access.profile_id, access]));
   return users.map((user) => {
     const profile = profilesById.get(user.id);
-    return { id: user.id, email: user.email, phone: user.phone, confirmedAt: user.email_confirmed_at, lastSignInAt: user.last_sign_in_at, createdAt: user.created_at, profile, role: rolesById.get(user.id) ?? null, permissionOverrides: overridesById.get(user.id) ?? [] };
+    return { id: user.id, email: user.email, phone: user.phone, confirmedAt: user.email_confirmed_at, lastSignInAt: user.last_sign_in_at, createdAt: user.created_at, profile, employeeAccess: employeeAccessByProfileId.get(user.id) ?? null, role: rolesById.get(user.id) ?? null, permissionOverrides: overridesById.get(user.id) ?? [] };
   });
 }
 
@@ -192,24 +300,36 @@ Deno.serve(async (request) => {
     const { data: identity, error: identityError } = await admin.auth.getUser(token);
     if (identityError || !identity.user) fail("Your session is invalid or expired.", 401);
     const callerId = identity.user.id;
-    const { workspaceId, roles: callerRoles } = await callerContext(admin, callerId);
     const body = request.method === "GET" ? {} : await request.json().catch(() => ({}));
     const action = (clean((body as Record<string, unknown>).action) || (request.method === "POST" ? "create" : request.method === "PATCH" ? "update" : request.method === "DELETE" ? "delete" : "list")) as Action;
+    const { workspaceId, roles: callerRoles } = await callerContext(admin, callerId, action === "provision_employee" || action === "employee_access" ? "employees" : "users");
 
     if (action === "list") return json({ users: await listUsers(admin) });
 
     const input = body as Record<string, unknown>;
+    if (action === "employee_access") return json(await updateEmployeeAccess(admin, workspaceId, callerId, input));
     const accountType = (clean(input.accountType) || "staff") as AccountType;
-    if (action !== "delete" && accountType !== "staff" && accountType !== "customer") fail("Account type must be staff or customer.");
-    const role = action === "delete" ? null : await roleFor(admin, clean(input.roleCode), accountType);
+    if (action !== "delete" && action !== "provision_employee" && accountType !== "staff" && accountType !== "customer") fail("Account type must be staff or customer.");
+    const selectedRoleCode = action === "provision_employee" ? (clean(input.roleCode) || "EMPLOYEE") : clean(input.roleCode);
+    const role = action === "delete" ? null : await roleFor(admin, selectedRoleCode, action === "provision_employee" ? "staff" : accountType);
     if (role?.code === "SUPER_ADMIN" && !callerRoles.some((candidate) => candidate.code === "SUPER_ADMIN")) fail("Only a super administrator can assign the super administrator role.", 403);
+
+    if (action === "provision_employee") {
+      if (!callerRoles.some((candidate) => candidate.code === "SUPER_ADMIN" || candidate.code === "ADMIN")) {
+        // HR roles can provision staff accounts, but cannot grant elevated
+        // administration or management roles.
+        if (role?.code !== "EMPLOYEE" && role?.code !== "HR_STAFF") fail("HR provisioning may only assign standard staff roles.", 403);
+      }
+      const result = await provisionEmployee(admin, workspaceId, callerId, input, role!);
+      return json({ ok: true, employeeAccess: result }, 201);
+    }
 
     if (action === "create") {
       const email = clean(input.email).toLowerCase();
       const password = clean(input.password);
       const fullName = clean(input.fullName);
       if (!email || !email.includes("@") || !fullName) fail("Name and a valid email are required.");
-      if (!passwordIsStrong(password)) fail("Password must be at least 10 characters and include letters and numbers.");
+      if (!passwordIsStrong(password)) fail("Password must be at least 8 characters.");
       const { data: created, error: createError } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: fullName } });
       if (createError || !created.user) fail(createError?.message || "Could not create the Auth user.", 400);
       const userId = created.user.id;
@@ -238,7 +358,7 @@ Deno.serve(async (request) => {
       const authUpdates: { email?: string; password?: string; user_metadata?: Record<string, string> } = {};
       if (email) authUpdates.email = email;
       if (password) {
-        if (!passwordIsStrong(password)) fail("Password must be at least 10 characters and include letters and numbers.");
+        if (!passwordIsStrong(password)) fail("Password must be at least 8 characters.");
         authUpdates.password = password;
       }
       if (clean(input.fullName)) authUpdates.user_metadata = { full_name: clean(input.fullName) };

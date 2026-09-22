@@ -38,13 +38,18 @@ export function SignInForm({ nextPath, demoAccounts }: { nextPath: string; demoA
 
     const userId = signInData.user?.id;
     const [{ data: profile }, { data: roleRows }] = await Promise.all([
-      userId ? supabase.from("profiles").select("account_type,is_active").eq("id", userId).maybeSingle() : Promise.resolve({ data: null }),
+      userId ? supabase.from("profiles").select("account_type,is_active,password_change_required").eq("id", userId).maybeSingle() : Promise.resolve({ data: null }),
       userId ? supabase.from("user_roles").select("roles(role_type)").eq("user_id", userId) : Promise.resolve({ data: [] as never[] }),
     ]);
     if (profile?.is_active === false) {
       await supabase.auth.signOut();
       setError("This account is inactive. Ask a Betanor administrator to restore access.");
       setIsSubmitting(false);
+      return;
+    }
+    if (profile?.password_change_required) {
+      router.replace(`/account/change-password?next=${encodeURIComponent(nextPath)}`);
+      router.refresh();
       return;
     }
     const hasRoleType = (roleType: "customer" | "staff") => (roleRows ?? []).some((row) => {

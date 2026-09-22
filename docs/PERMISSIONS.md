@@ -78,6 +78,30 @@ People-module enforcement now follows the same least-privilege model: `hr.read` 
 
 No single ordinary role should create, approve, and pay the same expense. Finance finalization of payroll should be separated from HR data preparation; contract acceptance should preserve customer consent evidence; role changes and RLS helper changes require an audited administrator action.
 
+## Phase A employee account provisioning
+
+| Capability | SUPER_ADMIN | ADMIN | HR_MANAGER | HR_STAFF | EMPLOYEE |
+|---|---:|---:|---:|---:|---:|
+| Create/update HR employee record | yes | yes | yes | yes | no |
+| Invite/provision employee account | yes | yes | yes | limited to `EMPLOYEE`/`HR_STAFF` | no |
+| Assign elevated staff role | yes | yes | approval required | no | no |
+| Change role/department/manager | yes | yes | yes | no | no |
+| Activate/suspend/disable access | yes | yes | yes | yes, scoped | no |
+| Resend invitation/password reset | yes | yes | yes | yes, scoped | self-service reset only |
+| View current password | never | never | never | never | never |
+
+The Edge Function validates the caller and selected role before calling the Auth admin API. `employee_access` is readable by the linked employee and authorized HR/users managers, but browser clients do not receive insert/update/delete grants; lifecycle writes go through the audited server function. Supabase Auth remains the only credential store. A temporary-password account sets `profiles.password_change_required` and can enter the workspace only after completing the first-login change flow.
+
+Access status semantics:
+
+- `pending_activation`: invitation sent; the employee has not completed activation.
+- `active`: login permitted; temporary-password accounts may still be required to change password.
+- `suspended`, `disabled`, `employment_ended`: Auth is banned and profile access is inactive. Historical employee, project, task, approval, letter, document, and audit rows are retained.
+
+## Support permission catalogue (planned)
+
+Phase B–H will add `support.read`, `support.create`, `support.assign`, `support.respond`, `support.internal_note`, `support.resolve`, `support.close`, `support.reopen`, `support.manage_sla`, `support.manage_contracts`, `support.start_video`, `support.schedule_onsite`, and `support.view_reports`. Staff permissions are workspace-scoped. Customer roles receive only portal-scoped ticket/message/attachment permissions and never `support.internal_note`, employee data, or another customer’s rows.
+
 ## Account-control implementation
 
 - `profiles.account_type` is either `staff` or `customer`; `roles.role_type` makes the same distinction. The admin control panel rejects mismatched assignments, and customer accounts cannot enter `/workspace`.

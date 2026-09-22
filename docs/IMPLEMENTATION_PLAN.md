@@ -20,6 +20,57 @@ Approve the master specification, tenancy model, roles, brand pack, legal/payrol
 
 Approved domain terms and states; data ownership; RLS policy tests; audit events; error/empty/loading states; responsive accessibility; migration rollback/forward plan; and owner acceptance criteria.
 
+## Updated controlled rollout (master revision 22 Sep 2026)
+
+The earlier phase list remains historical context. The remaining work is now gated as follows:
+
+### Phase A — employee account provisioning (implemented in this slice)
+
+- Add `employee_access` and `profiles.password_change_required` with RLS and indexes.
+- Provision/invite Auth users only through the server-side Edge Function; link role, profile, employee, department, manager, and access lifecycle with cleanup on failure.
+- Support pending activation, active, suspended, disabled, and employment ended; resend invitation and password-reset actions; first-login password change.
+- Add the employee registration UI controls, role selection, access status controls, and `/account/change-password`.
+- Run type-check, lint, production build, migration/RLS verification, and the end-to-end acceptance test below. Stop and report before Phase B.
+
+### Phase B — support core
+
+Design and migrate customer-linked support contracts, configurable SLAs, tickets, status history, assignments, attachments, assets, and escalation rules. Add staff RLS and server-side ticket/reference generation.
+
+### Phase C — customer support portal
+
+Add customer-scoped support navigation, guest request intake, ticket history, attachments, appointment visibility, and knowledge-base visibility without exposing workspace/internal notes.
+
+### Phase D — support chat and realtime
+
+Extend existing chat with ticket conversion, technician transfer, scoped Realtime subscriptions, typing/presence/read states, attachments, and internal notes. Keep customer and staff policies separate.
+
+### Phase E — remote/on-site sessions
+
+Add provider-neutral remote session records, scheduled on-site visits, technician mobile forms, service reports, and ticket-linked history.
+
+### Phase F — video support
+
+Add a dynamically loaded provider adapter (WebRTC or approved provider), short-lived server-authorized rooms, participant checks, connection state, and no-recording-by-default policy.
+
+### Phase G — continuous notifications
+
+Normalize event creation and asynchronous delivery for staff/customer in-app, email, Telegram, and future push/SMS. Add preferences, retries, idempotency, and scoped Realtime badges.
+
+### Phase H — support dashboards and KPI/reporting
+
+Add SLA/response/resolution metrics, backlog, escalations, technician workload, satisfaction, customer history, and responsive staff/customer dashboards.
+
+## Phase A acceptance gate
+
+1. Provision an employee with invitation and verify exactly one Auth user, profile, employee, role, and `employee_access` relationship.
+2. Provision with a temporary password; verify the password is not present in any public table and first login requires a change.
+3. Force an Auth/profile/employee failure and verify newly-created records are cleaned up.
+4. Resend invitation, request reset, suspend, reactivate, disable, and end employment; verify Auth ban/profile status and preserved HR history.
+5. Verify HR/admin authorization, role restrictions, cross-workspace isolation, and direct browser write denial for `employee_access`.
+6. Verify invite/reset delivery is asynchronous from later support notification work and does not expose service credentials.
+
+Do not start Phase B until these checks pass and the Phase A report is approved.
+
 ## Open decisions requiring approval
 
 1. Is this single-company or true multi-tenant SaaS, and can a user belong to multiple organizations?

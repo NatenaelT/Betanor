@@ -1,10 +1,10 @@
-# Betanor Digital Business Platform — Phase 0 Architecture
+# Betanor Digital Business Platform — Architecture (updated 22 Sep 2026)
 
 ## Audit baseline
 
-This repository contains only an unborn `main` Git branch and `.git` metadata. There is no source code, package manifest, Next.js configuration, Supabase project/configuration, database migration, authentication implementation, RLS policy, environment file, brand asset, website, or workspace functionality to inspect. The authoritative 2,792-line master specification was supplied separately on 2026-09-14 and governs this proposal. The official logo and letterhead referenced by that specification were not supplied in the repository or attachment set.
+The repository is a running Next.js App Router application deployed on Vercel and backed by Supabase Auth, PostgreSQL, Storage, and Realtime. The tracked migrations are the source of truth for the current schema. The current production slice includes the public/customer site, staff workspace, CRM/sales, projects/tasks, HR/leave/recruitment, payroll/finance, CMS/catalogue, letters, notifications, and authenticated realtime chat. This document is the maintained architecture record for the updated master specification; support delivery is planned in gated phases and is not implemented by this change.
 
-## Proposed platform shape
+## Platform shape
 
 Build a modular Next.js (React/TypeScript/Tailwind/shadcn-ui/Lucide) application backed by Supabase PostgreSQL, Auth, Storage, and Realtime; deploy on Vercel. Keep each business domain independently owned while sharing tenant, identity, audit, files, notifications, search, and approval capabilities. Use Next.js Server Actions/Route Handlers for application logic and Edge Functions only for isolated asynchronous/integration work.
 
@@ -21,7 +21,7 @@ Customer portal ──────┘
 
 ## Architectural principles
 
-- Multi-tenant from the first migration: every tenant-owned record carries `organization_id`.
+- Single Betanor workspace today, with `workspace_id` on tenant-owned records so a future multi-workspace deployment does not require an identity rewrite.
 - PostgreSQL is the source of truth; derived documents, exports, and notifications are asynchronous side effects.
 - Use opaque UUID primary keys, immutable audit events, timestamps, and optimistic version numbers for editable commercial documents.
 - Put authorization in PostgreSQL RLS; application checks improve UX but never replace RLS.
@@ -61,3 +61,13 @@ Use an outbox/event table for externally visible effects (email, PDF generation,
 - CRM, HR, finance, and strategy can each introduce overlapping “person,” “organization,” “goal,” and “cost” concepts; canonical ownership must be enforced.
 - Payroll, tax, leave accrual, and contract legality require local policy and legal/accounting approval.
 - “Chat to RFQ” requires an explicit supported channel, retention model, consent language, and human review policy.
+
+## Identity and employee access (Phase A)
+
+Supabase Auth owns credentials and sessions. `profiles` is the application identity record created by the Auth trigger. `employees` is HR/employment data and is deliberately separate from `profiles`; its nullable `profile_id` is the relationship, not an identity replacement. `employee_access` is the auditable lifecycle record for that relationship (`pending_activation`, `active`, `suspended`, `disabled`, `employment_ended`).
+
+Provisioning is performed only by the server-side `admin-user-management` Edge Function. It creates/invites Auth, assigns the database role, creates or links the employee, and records access status. Failures clean up newly-created Auth and employee rows. Temporary-password accounts set `profiles.password_change_required`; the first successful sign-in must complete `/account/change-password`. No password is stored in Betanor tables.
+
+## Support architecture boundary (planned Phases B–H)
+
+Support will reuse `customers`, `contracts`, `projects`, `profiles`, `notifications`, `audit_events`, private Storage, and the existing chat primitives. New support tables will be tenant-scoped and customer portal policies will be separate from staff workspace policies. Video will load dynamically behind a provider abstraction with short-lived server-authorized tokens. Notification delivery is asynchronous: the business transaction commits first, then an event/outbox worker delivers in-app, email, Telegram, or future push/SMS.

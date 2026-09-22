@@ -90,15 +90,25 @@ export async function DELETE(request: Request) {
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
   const id = text(body.id);
   if (!id) return NextResponse.json({ error: "An employee is required." }, { status: 422 });
-  const [{ count: leaveCount }, { count: payslipCount }, { count: taskCount }] = await Promise.all([
+  const [{ count: leaveCount }, { count: payslipCount }, { count: taskCount }, { data: employeeAccess }] = await Promise.all([
     supabase.from("leave_requests").select("id", { count: "exact", head: true }).eq("employee_id", id),
     supabase.from("payslips").select("id", { count: "exact", head: true }).eq("employee_id", id),
     supabase.from("task_assignees").select("task_id", { count: "exact", head: true }).eq("employee_id", id),
+    supabase.from("employee_access").select("id,access_status").eq("employee_id", id).eq("workspace_id", access.workspaceId).maybeSingle(),
   ]);
-  if ((leaveCount ?? 0) + (payslipCount ?? 0) + (taskCount ?? 0) > 0) {
+  const hasHistory = (leaveCount ?? 0) + (payslipCount ?? 0) + (taskCount ?? 0) > 0;
+  if (employeeAccess?.id) {
+    if (employeeAccess.access_status !== "employment_ended") {
+      const { error: accessError } = await supabase.functions.invoke("admin-user-management", {
+        body: { action: "employee_access", employeeId: id, accessAction: "set_status", status: "employment_ended" },
+      });
+      if (accessError) return NextResponse.json({ error: "The employee was not archived because account access could not be disabled." }, { status: 502 });
+    }
+  }
+  if (hasHistory || employeeAccess?.id) {
     const { error } = await supabase.from("employees").update({ employment_status: "archived", updated_at: new Date().toISOString() }).eq("id", id).eq("workspace_id", access.workspaceId);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ archived: true, message: "The employee has history, so the record was archived instead of destroying payroll or leave data." });
+    return NextResponse.json({ archived: true, message: employeeAccess?.id ? "The employee was archived and platform access was ended." : "The employee has history, so the record was archived instead of destroying payroll or leave data." });
   }
   const { error } = await supabase.from("employees").delete().eq("id", id).eq("workspace_id", access.workspaceId);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
