@@ -164,6 +164,15 @@ async function writeEmployee(admin: ReturnType<typeof createClient>, userId: str
   }
 }
 
+async function writeProfile(admin: ReturnType<typeof createClient>, userId: string, payload: Record<string, unknown>) {
+  const { data: existing, error: lookupError } = await admin.from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (lookupError) fail("Could not read the application profile.", 500);
+  const result = existing?.id
+    ? await admin.from("profiles").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", userId)
+    : await admin.from("profiles").insert({ id: userId, ...payload });
+  if (result.error) fail(`Could not ${existing?.id ? "update" : "create"} the application profile: ${result.error.message}`, 500);
+}
+
 async function provisionEmployee(admin: ReturnType<typeof createClient>, workspaceId: string, actorId: string, input: Record<string, unknown>, role: { id: string; code: string }) {
   const employee = (input.employee ?? {}) as Record<string, unknown>;
   const email = clean(input.email || employee.workEmail).toLowerCase();
@@ -176,6 +185,7 @@ async function provisionEmployee(admin: ReturnType<typeof createClient>, workspa
   let authUserId: string | null = null;
   let employeeId: string | null = clean(employee.employeeId) || null;
   let createdEmployeeRecord = false;
+  let stage = "authentication";
   try {
     const userResult = method === "invite"
       ? await admin.auth.admin.inviteUserByEmail(email, { data: { full_name: fullName, account_type: "staff" }, ...(clean(input.redirectTo) ? { redirectTo: clean(input.redirectTo) } : {}) })
@@ -191,11 +201,14 @@ async function provisionEmployee(admin: ReturnType<typeof createClient>, workspa
     employeeId = existingEmployee?.id ?? employeeId;
 
     const profileUpdate = { workspace_id: workspaceId, full_name: fullName, job_title: clean(input.jobTitle) || null, phone_e164: clean(input.phone || employee.workPhone) || null, email_address: email, account_type: "staff", is_active: true, password_change_required: method === "temporary_password", updated_at: new Date().toISOString() };
-    const { error: profileError } = await admin.from("profiles").update(profileUpdate).eq("id", authUserId);
-    if (profileError) fail("Could not create the application profile.", 500);
+    stage = "profile";
+    await writeProfile(admin, authUserId, profileUpdate);
 
+    stage = "role";
     await writeRole(admin, authUserId, role.id, actorId);
+    stage = "permissions";
     await writePermissions(admin, authUserId, actorId, input.permissionOverrides);
+    stage = "employee";
     await writeEmployee(admin, authUserId, workspaceId, { ...input, email, employee: { ...employee, employeeId } });
     if (!employeeId) {
       const { data: createdEmployee } = await admin.from("employees").select("id").eq("profile_id", authUserId).maybeSingle();
@@ -206,14 +219,17 @@ async function provisionEmployee(admin: ReturnType<typeof createClient>, workspa
 
     const accessStatus: AccessStatus = method === "invite" ? "pending_activation" : "active";
     const now = new Date().toISOString();
+    stage = "access lifecycle";
     const { error: accessError } = await admin.from("employee_access").upsert({ workspace_id: workspaceId, employee_id: employeeId, profile_id: authUserId, access_status: accessStatus, provisioning_method: method, must_change_password: method === "temporary_password", invited_at: method === "invite" ? now : null, last_invitation_at: method === "invite" ? now : null, activated_at: method === "temporary_password" ? now : null, created_by: actorId, updated_by: actorId, updated_at: now }, { onConflict: "employee_id" });
     if (accessError) fail("Could not save the employee access lifecycle.", 500);
+    stage = "audit";
     await audit(admin, workspaceId, actorId, authUserId, "employee_access_provisioned", { employee_id: employeeId, method, access_status: accessStatus, role: role.code });
     return { userId: authUserId, employeeId, method, accessStatus, role: role.code };
   } catch (error) {
     if (employeeId && createdEmployeeRecord) await admin.from("employees").delete().eq("id", employeeId).eq("profile_id", authUserId);
     if (authUserId) await admin.auth.admin.deleteUser(authUserId);
-    throw error;
+    const result = safeError(error);
+    throw new Error(`${result.status}:${stage}: ${result.message}`);
   }
 }
 
@@ -334,8 +350,7 @@ Deno.serve(async (request) => {
       if (createError || !created.user) fail(createError?.message || "Could not create the Auth user.", 400);
       const userId = created.user.id;
       try {
-        const { error: profileError } = await admin.from("profiles").update({ workspace_id: workspaceId, full_name: fullName, job_title: clean(input.jobTitle) || null, phone_e164: clean(input.phone) || null, email_address: email, account_type: accountType, is_active: true, updated_at: new Date().toISOString() }).eq("id", userId);
-        if (profileError) fail("Could not create the application profile.", 500);
+        await writeProfile(admin, userId, { workspace_id: workspaceId, full_name: fullName, job_title: clean(input.jobTitle) || null, phone_e164: clean(input.phone) || null, email_address: email, account_type: accountType, is_active: true });
         await writeRole(admin, userId, role!.id as string, callerId);
         await writePermissions(admin, userId, callerId, input.permissionOverrides);
         if (accountType === "customer") await writeCustomer(admin, userId, workspaceId, { ...input, email });
@@ -366,8 +381,7 @@ Deno.serve(async (request) => {
         const { error } = await admin.auth.admin.updateUserById(targetId, authUpdates);
         if (error) fail(error.message, 400);
       }
-      const { error: profileError } = await admin.from("profiles").update({ workspace_id: workspaceId, full_name: clean(input.fullName) || null, job_title: clean(input.jobTitle) || null, phone_e164: clean(input.phone) || null, email_address: email || null, account_type: accountType, is_active: input.isActive !== false, updated_at: new Date().toISOString() }).eq("id", targetId);
-      if (profileError) fail("Could not update the application profile.", 500);
+      await writeProfile(admin, targetId, { workspace_id: workspaceId, full_name: clean(input.fullName) || null, job_title: clean(input.jobTitle) || null, phone_e164: clean(input.phone) || null, email_address: email || null, account_type: accountType, is_active: input.isActive !== false });
       await writeRole(admin, targetId, role!.id as string, callerId);
       await writePermissions(admin, targetId, callerId, input.permissionOverrides);
       if (accountType === "customer") await writeCustomer(admin, targetId, workspaceId, { ...input, email });
