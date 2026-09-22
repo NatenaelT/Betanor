@@ -4,6 +4,13 @@
 
 `SUPER_ADMIN`, `MANAGEMENT`, `ADMIN`, `HR_MANAGER`, `HR_STAFF`, `FINANCE_MANAGER`, `FINANCE_STAFF`, `SALES_MANAGER`, `SALES_STAFF`, `PROJECT_MANAGER`, `TEAM_LEAD`, `TECHNICAL_STAFF`, `SUPPORT_STAFF`, `CONTENT_EDITOR`, `EMPLOYEE`, and `VIEWER` are the master-specified initial role bundles. They remain extensible and map to granular permissions such as `cms.publish`, `quotation.approve`, `task.assign`, `kpi.review`, `payroll.manage`, and `audit.read`.
 
+Tender permissions are seeded by `202609220003_tender_management.sql`: `tender.read`,
+`tender.create`, `tender.edit`, `tender.manage_guarantees`, `tender.submit`, and
+`tender.view_all`. They are workspace-scoped through `private.has_permission`;
+`tender.read` is assignment/owner scoped while `tender.view_all` is reserved for
+management/admin roles. Guarantee writes require `tender.manage_guarantees` and
+final snapshots require `tender.submit`.
+
 ## Authorization model
 
 Authorization has three layers: Supabase Auth identifies a user; an organization membership assigns one or more roles; PostgreSQL RLS restricts rows by organization and responsibility. Role names below are proposals. Permission grants should be capability-based, with role bundles stored in database configuration or version-controlled seed data.

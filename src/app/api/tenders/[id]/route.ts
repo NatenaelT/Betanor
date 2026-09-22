@@ -1,0 +1,6 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { resolveWorkspace } from "@/lib/workspace-context";
+
+export const dynamic = "force-dynamic";
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) { const { id } = await params; const supabase = await createClient(); const access = await resolveWorkspace(supabase); if (!access.workspaceId || !access.permissions.has("tender.edit")) return NextResponse.json({ error: "Tender edit permission is required." }, { status: 403 }); const body = await request.json().catch(() => ({})); const patch: Record<string, unknown> = {}; for (const key of ["title", "procuring_organization", "description", "tender_type", "status", "currency_code", "issue_date", "submission_deadline", "department_id"]) if (key in body) patch[key] = body[key] || null; if ("estimated_value" in body) patch.estimated_value = Number(body.estimated_value) || null; const { data, error } = await supabase.from("tenders").update(patch).eq("id", id).eq("workspace_id", access.workspaceId).select("*").maybeSingle(); if (error) return NextResponse.json({ error: error.message }, { status: 400 }); if (!data) return NextResponse.json({ error: "Tender not found." }, { status: 404 }); return NextResponse.json({ tender: data }); }

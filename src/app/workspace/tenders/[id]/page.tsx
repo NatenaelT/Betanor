@@ -1,0 +1,8 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { TenderDetailPanel } from "@/components/tenders/tender-detail-panel";
+import { createClient } from "@/lib/supabase/server";
+import { resolveWorkspace } from "@/lib/workspace-context";
+
+export const dynamic = "force-dynamic";
+export default async function TenderDetailPage({ params }: { params: Promise<{ id: string }> }) { const { id } = await params; const supabase = await createClient(); const access = await resolveWorkspace(supabase); if (!access.workspaceId || !access.permissions.has("tender.read") && !access.permissions.has("tender.view_all")) redirect("/workspace"); const [{ data: tender }, { data: requirements }, { data: guarantees }] = await Promise.all([supabase.from("tenders").select("*").eq("id", id).eq("workspace_id", access.workspaceId).maybeSingle(), supabase.from("tender_requirements").select("id,title,is_mandatory,is_complete").eq("tender_id", id).order("sort_order"), supabase.from("tender_guarantees").select("id,guarantee_type,reference_number,financial_institution,amount,expiry_date,status").eq("tender_id", id).order("expiry_date")]); if (!tender) notFound(); return <main className="mx-auto max-w-7xl px-5 py-8 sm:px-6 lg:px-8 lg:py-10"><Link href="/workspace/tenders" className="text-sm font-semibold text-[var(--betanor-blue)]">← Tender register</Link><TenderDetailPanel tender={tender} requirements={(requirements ?? []) as never[]} guarantees={(guarantees ?? []).map((row) => ({ ...row, amount: Number(row.amount ?? 0) })) as never[]} canEdit={access.permissions.has("tender.edit")} canGuarantee={access.permissions.has("tender.manage_guarantees")} canSubmit={access.permissions.has("tender.submit")} /></main>; }

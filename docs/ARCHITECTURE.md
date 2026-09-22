@@ -71,3 +71,22 @@ Provisioning is performed only by the server-side `admin-user-management` Edge F
 ## Support architecture boundary (planned Phases B–H)
 
 Support will reuse `customers`, `contracts`, `projects`, `profiles`, `notifications`, `audit_events`, private Storage, and the existing chat primitives. New support tables will be tenant-scoped and customer portal policies will be separate from staff workspace policies. Video will load dynamically behind a provider abstraction with short-lived server-authorized tokens. Notification delivery is asynchronous: the business transaction commits first, then an event/outbox worker delivers in-app, email, Telegram, or future push/SMS.
+# Tender and workspace extensions (September 2026)
+
+Tender management is a separate bounded context inside the existing workspace.
+It reuses the platform's profile/RBAC, task, document, letter, notification,
+and finance records. The register is server-rendered with indexed, permission-
+scoped queries; detail actions use authenticated route handlers. Final tender
+submission is a write-once snapshot with a content hash. Database triggers in
+`202609220005_tender_immutability.sql` provide defense in depth beyond the UI.
+
+Payroll remains in the existing payroll domain. Draft values are edited through
+the authenticated cycle endpoint and published cycles are not editable. The
+spreadsheet view is intentionally lightweight and exports Excel-compatible
+workbooks, Word-compatible documents, and PDF without loading a heavy office
+SDK into the workspace bundle.
+
+Every staff workspace has a personal area at `/workspace/profile`. Avatar files
+are private Supabase Storage objects under a user UUID prefix and are rendered
+through short-lived signed URLs. `profiles.avatar_path` remains the single
+identity reference for both staff and customer-facing profile surfaces.

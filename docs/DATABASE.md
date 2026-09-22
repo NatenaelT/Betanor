@@ -15,6 +15,9 @@ Implemented in Supabase on 15 September 2026 through the tracked migrations in `
 - `202609150025_phase18_finance_access.sql` adds configurable Ethiopian invoice VAT/TIN evidence, money integrity checks, finance permissions, and RLS-backed operational finance access.
 - `202609150026_finance_workspace_resolution.sql`, `202609150027_finance_related_reads.sql`, and `202609150028_finance_employee_context.sql` allow finance staff to resolve the tenant and read only the project, department, customer, and requester context needed by finance screens.
 - `202609220001_employee_account_provisioning.sql` adds the separate employee access lifecycle and temporary-password activation flag. The corresponding Auth/employee provisioning workflow lives in `supabase/functions/admin-user-management`.
+- `202609220003_tender_management.sql` adds tenders, submission requirements, CPO/bank guarantees, tender-task links, activity history, and immutable final submission snapshots with RLS.
+- `202609220004_profile_avatars.sql` adds the private `betanor-profile-avatars` Storage bucket and owner-scoped policies, reusing `profiles.avatar_path`.
+- `202609220005_tender_immutability.sql` adds database triggers preventing updates/deletes to a submitted tender, its checklist, guarantees, task links, or final submission snapshot.
 
 The physical model uses `workspaces` as the tenant/company boundary, UUID primary keys, `timestamptz` audit timestamps, ISO-4217 currency codes, and `numeric(14,2)` money values. Every table in the exposed `public` schema has RLS enabled. Finance now exposes only permission-scoped reads and writes for categories, vendors, budgets, expenses, invoices, invoice lines, payments, and expense approvals; unrelated callers remain blocked. Invoices retain configurable VAT rate, tax amount, tax-inclusive flag, supplier/customer TIN and VAT registration values, place of supply, payment terms, and Ethiopian governing-law evidence. Approved records are management-finance data and do not replace statutory fiscal invoicing.
 
@@ -60,6 +63,15 @@ erDiagram
   PROJECT ||--o{ KPI : measured_by
   FINANCIAL_RESULT }o--o{ PROJECT : attributes_to
   FINANCIAL_RESULT }o--o{ ANNUAL_GOAL : informs
+
+  TENDER ||--o{ TENDER_REQUIREMENT : checks
+  TENDER ||--o{ TENDER_GUARANTEE : secures
+  TENDER ||--o{ TENDER_TASK_LINK : schedules
+  TASK ||--o{ TENDER_TASK_LINK : supports
+  TENDER ||--o{ TENDER_ACTIVITY : records
+  TENDER ||--o| TENDER_SUBMISSION : finalizes
+  TENDER ||--o{ LETTER : correspondence
+  TENDER_GUARANTEE }o--o| DOCUMENT : attaches
 ```
 
 ## Major relationship narratives
@@ -85,6 +97,23 @@ An employee is not an Auth user. `auth.users` owns credentials; `profiles` owns 
 - `conversation`, `message`, `rfq_intake`: chat ingestion and human-reviewed RFQ extraction.
 - `expense_request`, `expense_line`, `budget`, `budget_allocation`, `finance_transaction`, `invoice`, `payment`.
 - `audit_event`, `outbox_event`, `notification`, `comment`, `tag`.
+
+## Tender management domain
+
+`tenders` is the bounded tender register. Each tender owns a mandatory/optional
+submission checklist, one or more security records (`tender_guarantees`), links
+to existing `tasks` through `tender_task_links`, and an activity timeline. A
+submission letter is an existing `letters` row linked by `letters.tender_id`;
+the tender does not duplicate the correspondence model. `tender_submissions`
+stores one immutable final snapshot and SHA-256 content hash per tender. The
+database unique constraint prevents two references within one workspace and
+the unique tender submission constraint prevents a second final submission.
+Guarantee expiry, responsible-user, tender deadline, and status indexes support
+the role dashboards without loading the full register.
+
+Payroll edits remain in the existing `payroll_cycles`/`payslips` model. The
+application spreadsheet editor updates only draft/submitted, unpublished slips;
+published cycles remain protected by the existing payroll transition/RLS rules.
 
 ## Implemented domain inventory
 

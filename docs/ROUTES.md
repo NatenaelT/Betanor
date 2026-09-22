@@ -16,6 +16,8 @@ The route map below records the target App Router surface. Public and core works
 | Strategy | `/workspace/annual-plan`, `/workspace/goals`, `/workspace/kpis`, `/workspace/reports` | management/scoped staff |
 | Content & docs | `/workspace/products`, `/workspace/services`, `/workspace/insights`, `/workspace/cms`, `/workspace/documents`, `/workspace/templates` | scoped staff |
 | Administration | `/workspace/admin/users`, `/workspace/admin/roles`, `/workspace/admin/departments`, `/workspace/admin/workflows`, `/workspace/admin/settings`, `/workspace/admin/audit-logs` | administrators |
+| Tender management | `/workspace/tenders`, `/workspace/tenders/[id]` | tender-scoped staff; guarantees, checklist, submission letter, and final snapshot follow RBAC |
+| Personal area | `/workspace/profile` | authenticated staff; own profile fields and private avatar |
 | Employee access API | `/api/admin/employee-access` | HR/admin server boundary; invitation, reset, status, and provisioning actions |
 
 ## Support routes (planned, gated after Phase A)
@@ -29,3 +31,5 @@ The route map below records the target App Router surface. Public and core works
 Route access is a usability guard only. Each loader, action, API endpoint, and database query must independently authorize access.
 
 Phase 8 implements `/workspace/products` as a protected catalogue console and turns `/products` into a dynamic public catalogue reading only published product records.
+
+Payroll managers can edit draft payroll directly at `/workspace/payslips`; each cycle exposes Excel-compatible, Word-compatible, and PDF downloads through `/api/payroll/cycles/[id]/export/[format]`.
