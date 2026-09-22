@@ -31,7 +31,7 @@ export default async function EmployeesPage() {
 
   const [departments, positions, profiles, roles, employees, accessRows] = await Promise.all([
     workspaceId ? supabase.from("departments").select("id,name,code").eq("workspace_id", workspaceId).order("name") : Promise.resolve({ data: [] as never[] }),
-    workspaceId ? supabase.from("positions").select("id,title,code").eq("workspace_id", workspaceId).order("title") : Promise.resolve({ data: [] as never[] }),
+    workspaceId ? supabase.from("positions").select("id,title,code,departments(name,code)").eq("workspace_id", workspaceId).order("title") : Promise.resolve({ data: [] as never[] }),
     workspaceId ? supabase.from("profiles").select("id,full_name,job_title,workspace_id").order("full_name") : Promise.resolve({ data: [] as never[] }),
     workspaceId ? supabase.from("roles").select("code,name").is("workspace_id", null).eq("role_type", "staff").eq("is_system", true).order("name") : Promise.resolve({ data: [] as never[] }),
     workspaceId ? supabase.from("employees").select("id,profile_id,employee_number,first_name,last_name,work_email,work_phone,hire_date,employment_status,employment_type,probation_end_date,department_id,position_id,manager_id,work_hours_per_day,work_days_per_week,departments(name),positions(title),employment_contracts(id,title,starts_on,ends_on,salary_amount,currency_code,status)").eq("workspace_id", workspaceId).order("hire_date", { ascending: false }) : Promise.resolve({ data: [] as never[] }),
@@ -45,7 +45,7 @@ export default async function EmployeesPage() {
     <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="text-sm font-semibold tracking-[0.14em] text-[var(--betanor-blue)] uppercase">People module</p><h1 className="mt-3 text-3xl font-semibold text-[var(--betanor-navy)]">Employee directory</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--betanor-muted)]">Every staff profile carries an automatic Betanor ID, start date, position, salary record, reporting line, portal link, and standard Monday–Friday work schedule.</p></div><Link href="/workspace/leave" className="text-sm font-semibold text-[var(--betanor-blue)] hover:underline">Open leave desk →</Link></div>
     {workspaceId ? <EmployeeManagementPanel
       departments={(departments.data ?? []).map((department) => ({ id: department.id, label: `${department.name} · ${department.code}` }))}
-      positions={(positions.data ?? []).map((position) => ({ id: position.id, label: `${position.title}${position.code ? ` · ${position.code}` : ""}` }))}
+      positions={(positions.data ?? []).map((position) => { const department = Array.isArray(position.departments) ? position.departments[0] : position.departments; return { id: position.id, label: `${position.title}${position.code ? ` · ${position.code}` : ""}${department?.name ? ` · ${department.name}` : ""}` }; })}
       profiles={(profiles.data ?? []).map((profile) => ({ id: profile.id, label: `${profile.full_name || "Unnamed profile"}${profile.job_title ? ` · ${profile.job_title}` : ""}` }))}
       managers={rows.map((employee) => ({ id: employee.id, label: `${employee.first_name} ${employee.last_name} · ${employee.employee_number}` }))}
       roles={(roles.data ?? []).map((role) => ({ id: role.code, label: role.name }))}

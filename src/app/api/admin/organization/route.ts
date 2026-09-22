@@ -88,16 +88,9 @@ export async function DELETE(request: Request) {
   const id = text(body.id);
   if (!kind || !id) return NextResponse.json({ error: "A valid record is required." }, { status: 422 });
   if (kind === "department") {
-    const [positions, employees, goals, budgets, expenses, openings] = await Promise.all([
-      supabase.from("positions").select("id", { count: "exact", head: true }).eq("department_id", id),
-      supabase.from("employees").select("id", { count: "exact", head: true }).eq("department_id", id),
-      supabase.from("department_goals").select("id", { count: "exact", head: true }).eq("department_id", id),
-      supabase.from("budgets").select("id", { count: "exact", head: true }).eq("department_id", id),
-      supabase.from("expenses").select("id", { count: "exact", head: true }).eq("department_id", id),
-      supabase.from("job_openings").select("id", { count: "exact", head: true }).eq("department_id", id),
-    ]);
-    if ([positions, employees, goals, budgets, expenses, openings].some((result) => result.error)) return NextResponse.json({ error: "Department dependencies could not be checked safely. Try again or set the department inactive." }, { status: 409 });
-    const references = [positions, employees, goals, budgets, expenses, openings].reduce((total, result) => total + (result.count ?? 0), 0);
+    const { data: dependencyCounts, error: dependencyError } = await supabase.rpc("admin_department_dependency_counts", { target_department_id: id, target_workspace_id: access.workspaceId });
+    if (dependencyError) return NextResponse.json({ error: "Department dependencies could not be checked safely. The department was not deleted; set it inactive instead.", details: dependencyError.message }, { status: 409 });
+    const references = Object.values((dependencyCounts ?? {}) as Record<string, unknown>).reduce<number>((total, count) => total + (typeof count === "number" ? count : Number(count) || 0), 0);
     if (references > 0) return NextResponse.json({ error: "This department is used by operational records. Set it inactive to preserve history." }, { status: 409 });
     const { error } = await supabase.from("departments").delete().eq("id", id).eq("workspace_id", access.workspaceId);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });

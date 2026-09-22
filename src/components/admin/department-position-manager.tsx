@@ -53,8 +53,10 @@ export function DepartmentPositionManager() {
   const visiblePositions = useMemo(() => selectedDepartmentId ? positions.filter((position) => position.department_id === selectedDepartmentId) : [], [positions, selectedDepartmentId]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>, body: Record<string, unknown>) {
-    event.preventDefault(); setBusy(true); setError(null); setMessage(null);
-    try { await requestJson("/api/admin/organization", { method: "POST", body: JSON.stringify(body) }); await refresh(); setMessage(body.entity === "department" ? "Department created." : "Position created with an automatic code."); event.currentTarget.reset(); setDepartmentModalOpen(false); setPositionModalOpen(false); }
+    event.preventDefault();
+    const form = event.currentTarget;
+    setBusy(true); setError(null); setMessage(null);
+    try { await requestJson("/api/admin/organization", { method: "POST", body: JSON.stringify(body) }); await refresh(); setMessage(body.entity === "department" ? "Department created." : "Position created with an automatic code."); form.reset(); setDepartmentModalOpen(false); setPositionModalOpen(false); }
     catch (reason: unknown) { setError(reason instanceof Error ? reason.message : "Could not save the record."); }
     finally { setBusy(false); }
   }
