@@ -37,12 +37,6 @@ export default async function AboutPage() {
   const hero = content.get("hero");
   const mission = content.get("mission");
   const vision = content.get("vision");
-  const missionCopy =
-    [mission?.title, mission?.body].find((copy) => typeof copy === "string" && copy.trim().length >= 80)?.trim() ||
-    missionText;
-  const visionCopy =
-    [vision?.title, vision?.body].find((copy) => typeof copy === "string" && copy.trim().length >= 80)?.trim() ||
-    visionText;
 
   return (
     <>
@@ -84,7 +78,7 @@ export default async function AboutPage() {
                     {mission?.eyebrow || "Our mission"}
                   </h3>
                   <p className="mt-3 text-base leading-7 text-[var(--betanor-text)]">
-                    {missionCopy}
+                    {missionText}
                   </p>
                 </CardContent>
               </Card>
@@ -94,7 +88,7 @@ export default async function AboutPage() {
                     {vision?.eyebrow || "Our vision"}
                   </h3>
                   <p className="mt-3 text-base leading-7 text-[var(--betanor-text)]">
-                    {visionCopy}
+                    {visionText}
                   </p>
                 </CardContent>
               </Card>
