@@ -37,6 +37,8 @@ export default async function AboutPage() {
   const hero = content.get("hero");
   const mission = content.get("mission");
   const vision = content.get("vision");
+  const missionCopy = mission?.title?.trim() || missionText;
+  const visionCopy = vision?.title?.trim() || visionText;
 
   return (
     <>
@@ -78,7 +80,7 @@ export default async function AboutPage() {
                     {mission?.eyebrow || "Our mission"}
                   </h3>
                   <p className="mt-3 text-base leading-7 text-[var(--betanor-text)]">
-                    {mission?.title || missionText}
+                    {missionCopy}
                   </p>
                 </CardContent>
               </Card>
@@ -88,7 +90,7 @@ export default async function AboutPage() {
                     {vision?.eyebrow || "Our vision"}
                   </h3>
                   <p className="mt-3 text-base leading-7 text-[var(--betanor-text)]">
-                    {vision?.title || visionText}
+                    {visionCopy}
                   </p>
                 </CardContent>
               </Card>
