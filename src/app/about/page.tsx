@@ -37,8 +37,12 @@ export default async function AboutPage() {
   const hero = content.get("hero");
   const mission = content.get("mission");
   const vision = content.get("vision");
-  const missionCopy = mission?.title?.trim() || missionText;
-  const visionCopy = vision?.title?.trim() || visionText;
+  const missionCopy =
+    [mission?.title, mission?.body].find((copy) => typeof copy === "string" && copy.trim().length >= 80)?.trim() ||
+    missionText;
+  const visionCopy =
+    [vision?.title, vision?.body].find((copy) => typeof copy === "string" && copy.trim().length >= 80)?.trim() ||
+    visionText;
 
   return (
     <>
