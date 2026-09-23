@@ -85,10 +85,12 @@ async function updateContent(data: FormData) {
   const id = text(data, "id");
   const title = text(data, "title");
   const slug = text(data, "slug").toLowerCase();
+  const summary = text(data, "summary");
+  const content = text(data, "content");
   if (!isContentKind(kind) || !id || !title || !slug) return;
   const supabase = await createClient();
   if (kind === "industry") await supabase.from("industries").update({ name: title, slug }).eq("id", id);
-  if (kind === "service") await supabase.from("services").update({ title, slug }).eq("id", id);
+  if (kind === "service") await supabase.from("services").update({ title, slug, excerpt: summary || null, content: content || null }).eq("id", id);
   if (kind === "case-study") await supabase.from("case_studies").update({ title, slug }).eq("id", id);
   if (kind === "insight") await supabase.from("insights").update({ title, slug }).eq("id", id);
   revalidatePath("/workspace/cms");
@@ -224,7 +226,7 @@ export default async function CmsPage() {
   const supabase = await createClient();
   const [industries, services, caseStudies, insights, siteContent, advertisements] = await Promise.all([
     supabase.from("industries").select("id, name, slug, status, published_at").order("updated_at", { ascending: false }),
-    supabase.from("services").select("id, title, slug, status, published_at").order("updated_at", { ascending: false }),
+    supabase.from("services").select("id, title, slug, excerpt, content, status, published_at").order("updated_at", { ascending: false }),
     supabase.from("case_studies").select("id, title, slug, status, published_at").order("updated_at", { ascending: false }),
     supabase.from("insights").select("id, title, slug, status, published_at").order("updated_at", { ascending: false }),
     supabase.from("site_content").select("id,content_key,page,section,eyebrow,title,body,cta_label,cta_href,image_path,video_path,status,published_at,updated_at").order("updated_at", { ascending: false }),
@@ -232,10 +234,10 @@ export default async function CmsPage() {
   ]);
 
   const collections = [
-    { kind: "industry" as const, label: "Industries", rows: industries.data?.map((row) => ({ ...row, title: row.name })) ?? [] },
+    { kind: "industry" as const, label: "Industries", rows: industries.data?.map((row) => ({ id: row.id, title: row.name, slug: row.slug, status: row.status, published_at: row.published_at, excerpt: null, content: null })) ?? [] },
     { kind: "service" as const, label: "Services", rows: services.data ?? [] },
-    { kind: "case-study" as const, label: "Case studies", rows: caseStudies.data ?? [] },
-    { kind: "insight" as const, label: "Insights", rows: insights.data ?? [] },
+    { kind: "case-study" as const, label: "Case studies", rows: caseStudies.data?.map((row) => ({ id: row.id, title: row.title, slug: row.slug, status: row.status, published_at: row.published_at, excerpt: null, content: null })) ?? [] },
+    { kind: "insight" as const, label: "Insights", rows: insights.data?.map((row) => ({ id: row.id, title: row.title, slug: row.slug, status: row.status, published_at: row.published_at, excerpt: null, content: null })) ?? [] },
   ];
   const canRead = !industries.error && !services.error && !caseStudies.error && !insights.error;
 
@@ -243,7 +245,90 @@ export default async function CmsPage() {
     <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="text-sm font-semibold tracking-[0.14em] text-[var(--betanor-blue)] uppercase">Content management</p><h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--betanor-navy)]">Publish with confidence.</h1><p className="mt-3 max-w-2xl text-base leading-7 text-[var(--betanor-muted)]">Create and govern the content used across the Betanor public experience.</p></div><Badge tone="info">RLS protected</Badge></div>
     {!canRead ? <Card className="mt-8 p-6"><h2 className="text-lg font-semibold text-[var(--betanor-navy)]">CMS access is required</h2><p className="mt-2 text-sm leading-6 text-[var(--betanor-muted)]">Ask an administrator to assign the CMS reader, writer, or publisher capability to your account.</p></Card> : <>
       <Card className="mt-8 p-5 sm:p-6"><h2 className="text-lg font-semibold text-[var(--betanor-navy)]">Create draft</h2><form action={createContent} className="mt-5 grid gap-4 md:grid-cols-2"><label className="text-sm font-semibold text-[var(--betanor-navy)]">Content type<select name="kind" className="mt-2 min-h-10 w-full rounded-lg border border-[var(--betanor-border)] bg-white px-3 text-sm"><option value="service">Service</option><option value="industry">Industry</option><option value="case-study">Case study</option><option value="insight">Insight</option></select></label><label className="text-sm font-semibold text-[var(--betanor-navy)]">Title<Input name="title" required className="mt-2" /></label><label className="text-sm font-semibold text-[var(--betanor-navy)]">Slug<Input name="slug" required pattern="[a-z0-9-]+" className="mt-2" /></label><label className="text-sm font-semibold text-[var(--betanor-navy)]">Short summary<Input name="summary" className="mt-2" /></label><label className="md:col-span-2 text-sm font-semibold text-[var(--betanor-navy)]">Content<textarea name="content" rows={5} className="mt-2 w-full rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-sm outline-none focus:border-[var(--betanor-electric-blue)] focus:ring-2 focus:ring-blue-100" /></label><div className="md:col-span-2"><Button type="submit">Save draft</Button></div></form></Card>
-      <div className="mt-8 grid gap-5 xl:grid-cols-2">{collections.map((collection) => <Card key={collection.kind} className="overflow-hidden"><div className="flex items-center justify-between border-b border-[var(--betanor-border)] px-5 py-4"><h2 className="font-semibold text-[var(--betanor-navy)]">{collection.label}</h2><span className="text-sm text-[var(--betanor-muted)]">{collection.rows.length}</span></div>{collection.rows.length ? <ul className="divide-y divide-[var(--betanor-border)]">{collection.rows.map((row) => <li key={row.id} className="px-5 py-4"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold text-[var(--betanor-navy)]">{row.title}</p><p className="mt-1 truncate text-xs text-[var(--betanor-muted)]">/{row.slug}</p></div><div className="flex shrink-0 items-center gap-2"><Badge tone={row.status === "active" ? "success" : "draft"}>{row.status}</Badge><details className="relative"><summary className="cursor-pointer list-none rounded-lg border border-[var(--betanor-border)] px-3 py-1.5 text-xs font-semibold text-[var(--betanor-navy)] hover:border-[var(--betanor-blue)]">Edit</summary><form action={updateContent} className="absolute top-9 right-0 z-10 grid w-64 gap-2 rounded-xl border border-[var(--betanor-border)] bg-white p-3 shadow-xl"><input type="hidden" name="kind" value={collection.kind}/><input type="hidden" name="id" value={row.id}/><Input name="title" defaultValue={row.title}/><Input name="slug" defaultValue={row.slug}/><Button type="submit" size="sm">Save changes</Button></form></details>{row.status !== "active" ? <form action={publishContent.bind(null, collection.kind, row.id)}><Button type="submit" size="sm">Publish</Button></form> : null}{row.status !== "archived" ? <form action={archiveContent.bind(null, collection.kind, row.id)}><Button type="submit" size="sm" variant="outline">Archive</Button></form> : null}{row.status !== "active" ? <form action={deleteContent.bind(null, collection.kind, row.id)}><Button type="submit" size="sm" variant="outline">Delete</Button></form> : null}</div></div></li>)}</ul> : <p className="px-5 py-8 text-sm text-[var(--betanor-muted)]">No {collection.label.toLowerCase()} have been created.</p>}</Card>)}</div>
+      <div className="mt-8 grid gap-5 xl:grid-cols-2">
+        {collections.map((collection) => (
+          <Card key={collection.kind} className="overflow-hidden">
+            <div className="flex items-center justify-between border-b border-[var(--betanor-border)] px-5 py-4">
+              <h2 className="font-semibold text-[var(--betanor-navy)]">{collection.label}</h2>
+              <span className="text-sm text-[var(--betanor-muted)]">{collection.rows.length}</span>
+            </div>
+            {collection.rows.length ? (
+              <ul className="divide-y divide-[var(--betanor-border)]">
+                {collection.rows.map((row) => (
+                  <li key={row.id} className="px-5 py-4">
+                    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[var(--betanor-navy)]">{row.title}</p>
+                        <p className="mt-1 truncate text-xs text-[var(--betanor-muted)]">/{row.slug}</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone={row.status === "active" ? "success" : "draft"}>{row.status}</Badge>
+                        <details className="relative">
+                          <summary className="cursor-pointer list-none rounded-lg border border-[var(--betanor-border)] px-3 py-1.5 text-xs font-semibold text-[var(--betanor-navy)] hover:border-[var(--betanor-blue)]">
+                            Edit
+                          </summary>
+                          <form
+                            action={updateContent}
+                            className="absolute top-9 right-0 z-10 grid max-h-[min(80vh,42rem)] w-[min(90vw,30rem)] gap-3 overflow-y-auto rounded-xl border border-[var(--betanor-border)] bg-white p-4 shadow-xl"
+                          >
+                            <input type="hidden" name="kind" value={collection.kind} />
+                            <input type="hidden" name="id" value={row.id} />
+                            <label className="text-sm font-semibold text-[var(--betanor-navy)]">
+                              Title
+                              <Input name="title" required defaultValue={row.title} className="mt-1" />
+                            </label>
+                            <label className="text-sm font-semibold text-[var(--betanor-navy)]">
+                              URL slug
+                              <Input name="slug" required defaultValue={row.slug} className="mt-1" />
+                            </label>
+                            {collection.kind === "service" ? (
+                              <>
+                                <label className="text-sm font-semibold text-[var(--betanor-navy)]">
+                                  Short summary
+                                  <Input name="summary" defaultValue={row.excerpt ?? ""} className="mt-1" />
+                                </label>
+                                <label className="text-sm font-semibold text-[var(--betanor-navy)]">
+                                  Detailed description
+                                  <textarea
+                                    name="content"
+                                    defaultValue={row.content ?? ""}
+                                    rows={7}
+                                    className="mt-1 w-full rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-sm leading-6 outline-none focus:border-[var(--betanor-electric-blue)] focus:ring-2 focus:ring-blue-100"
+                                  />
+                                </label>
+                              </>
+                            ) : null}
+                            <Button type="submit" size="sm">Save changes</Button>
+                          </form>
+                        </details>
+                        {row.status !== "active" ? (
+                          <form action={publishContent.bind(null, collection.kind, row.id)}>
+                            <Button type="submit" size="sm">Publish</Button>
+                          </form>
+                        ) : null}
+                        {row.status !== "archived" ? (
+                          <form action={archiveContent.bind(null, collection.kind, row.id)}>
+                            <Button type="submit" size="sm" variant="outline">Archive</Button>
+                          </form>
+                        ) : null}
+                        {row.status !== "active" ? (
+                          <form action={deleteContent.bind(null, collection.kind, row.id)}>
+                            <Button type="submit" size="sm" variant="outline">Delete</Button>
+                          </form>
+                        ) : null}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="px-5 py-8 text-sm text-[var(--betanor-muted)]">
+                No {collection.label.toLowerCase()} have been created.
+              </p>
+            )}
+          </Card>
+        ))}
+      </div>
 
       <Card className="mt-8 p-5 sm:p-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><p className="text-sm font-semibold tracking-[0.14em] text-[var(--betanor-blue)] uppercase">All public pages</p><h2 className="mt-2 text-xl font-semibold text-[var(--betanor-navy)]">Site content blocks</h2><p className="mt-1 text-sm text-[var(--betanor-muted)]">These records drive hero copy, sections, calls to action, links, and media on the customer-facing site.</p></div><Badge tone="info">{siteContent.data?.length ?? 0} blocks</Badge></div><form action={createSiteContent} encType="multipart/form-data" className="mt-6 grid gap-4 md:grid-cols-2"><label className="text-sm font-semibold text-[var(--betanor-navy)]">Content key<Input name="contentKey" required placeholder="home.hero" className="mt-2" /></label><label className="text-sm font-semibold text-[var(--betanor-navy)]">Page<Input name="page" required placeholder="home" className="mt-2" /></label><label className="text-sm font-semibold text-[var(--betanor-navy)]">Section<Input name="section" required placeholder="hero" className="mt-2" /></label><label className="text-sm font-semibold text-[var(--betanor-navy)]">Eyebrow<Input name="eyebrow" className="mt-2" /></label><label className="md:col-span-2 text-sm font-semibold text-[var(--betanor-navy)]">Title<Input name="title" required className="mt-2" /></label><label className="md:col-span-2 text-sm font-semibold text-[var(--betanor-navy)]">Body<textarea name="body" rows={4} className="mt-2 w-full rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-sm" /></label><label className="text-sm font-semibold text-[var(--betanor-navy)]">Button label<Input name="ctaLabel" className="mt-2" /></label><label className="text-sm font-semibold text-[var(--betanor-navy)]">Button link<Input name="ctaHref" placeholder="/contact" className="mt-2" /></label><label className="text-sm font-semibold text-[var(--betanor-navy)]">Image<input name="image" type="file" accept="image/*" className="mt-2 block w-full text-sm" /></label><label className="text-sm font-semibold text-[var(--betanor-navy)]">Video<input name="video" type="file" accept="video/mp4,video/webm,video/quicktime" className="mt-2 block w-full text-sm" /></label><div className="md:col-span-2"><Button type="submit">Save content draft</Button></div></form><div className="mt-8 divide-y divide-[var(--betanor-border)] rounded-xl border border-[var(--betanor-border)]">{siteContent.data?.length ? siteContent.data.map((row) => <div key={row.id} className="flex flex-col gap-4 p-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Badge tone={row.status === "active" ? "success" : "draft"}>{row.status}</Badge><span className="text-xs font-semibold text-[var(--betanor-blue)]">{row.page} / {row.section}</span></div><p className="mt-2 text-sm font-semibold text-[var(--betanor-navy)]">{row.title}</p><p className="mt-1 text-xs text-[var(--betanor-muted)]">{row.content_key}{row.cta_href ? ` · ${row.cta_label || "Link"}: ${row.cta_href}` : ""}</p>{row.image_path ? <img src={publicSiteAssetUrl(row.image_path) ?? undefined} alt="" className="mt-3 h-16 w-24 rounded object-cover" /> : null}</div><div className="flex flex-wrap items-center gap-2"><details className="relative"><summary className="cursor-pointer list-none rounded-lg border border-[var(--betanor-border)] px-3 py-1.5 text-xs font-semibold">Edit</summary><form action={updateSiteContent} encType="multipart/form-data" className="absolute top-9 right-0 z-10 grid w-[min(90vw,24rem)] gap-2 rounded-xl border border-[var(--betanor-border)] bg-white p-3 shadow-xl"><input type="hidden" name="id" value={row.id}/><Input name="eyebrow" defaultValue={row.eyebrow ?? ""} placeholder="Eyebrow"/><Input name="title" required defaultValue={row.title ?? ""} placeholder="Title"/><textarea name="body" defaultValue={row.body ?? ""} rows={4} className="w-full rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-sm" placeholder="Body"/><Input name="ctaLabel" defaultValue={row.cta_label ?? ""} placeholder="Button label"/><Input name="ctaHref" defaultValue={row.cta_href ?? ""} placeholder="Button link"/><input name="image" type="file" accept="image/*"/><input name="video" type="file" accept="video/mp4,video/webm,video/quicktime"/><Button type="submit" size="sm">Save changes</Button></form></details>{row.status !== "active" ? <form action={publishSiteContent.bind(null, row.id)}><Button type="submit" size="sm">Publish</Button></form> : null}{row.status !== "archived" ? <form action={archiveSiteContent.bind(null, row.id)}><Button type="submit" size="sm" variant="outline">Archive</Button></form> : null}{row.status !== "active" ? <form action={deleteSiteContent.bind(null, row.id)}><Button type="submit" size="sm" variant="outline">Delete</Button></form> : null}</div></div>) : <p className="p-5 text-sm text-[var(--betanor-muted)]">No site content blocks yet.</p>}</div></Card>
 
