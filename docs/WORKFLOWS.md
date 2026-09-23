@@ -18,6 +18,10 @@ Each workflow requires explicit state transitions, approval rules, notifications
 
 13. **Tender security expiry:** guarantee issue/expiry and responsible staff are recorded against the tender → the idempotent daily reminder function creates 14/7/3/1-day in-app notification events (and leaves email/Telegram delivery to the existing asynchronous notification workers) → release/return status and date are recorded without deleting the original security history.
 
+14. **RTSL support request:** authenticated RTSL contact submits a support request → database assigns `BTNR-TKT-YYYY-XXXXX` under a concurrency-safe yearly sequence → creates the canonical chat conversation and initial message → assignment and status changes use RBAC-checked RPCs → technician communicates with the customer through realtime chat and private attachments → remote/video/onsite session details and work log are recorded → technician marks resolved → customer confirms to close. The RTSL recurring onsite window is Thursday 09:00–12:00 East Africa Time.
+
+15. **Support notifications:** ticket insert/assignment/status transition writes in-app notification rows where enabled and queues email/Telegram outbox events according to each profile's support preferences. The transaction does not wait for delivery. No dispatcher is currently connected, so outbox channels require worker/provider configuration before delivery.
+
 ## Cross-workflow controls
 
 Use an approval policy engine with amount, department, project, data sensitivity, and delegation inputs. Every side effect is idempotent, recorded through the outbox, and visible in an audit timeline.

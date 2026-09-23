@@ -1,0 +1,13 @@
+"use client";
+import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- support schema is introduced by a not-yet-applied migration. */
+
+export function SupportRequestForm({customerId,workspaceId}:{customerId:string;workspaceId:string}) {
+ const [error,setError]=useState(""); const [saving,setSaving]=useState(false); const router=useRouter();
+ async function submit(event:FormEvent<HTMLFormElement>) { event.preventDefault(); const formElement=event.currentTarget; setSaving(true); setError(""); const form=new FormData(formElement); const supabase=createClient() as any; const {data:{user}}=await supabase.auth.getUser(); if(!user){setError("Your session expired. Please sign in again.");setSaving(false);return;} const {error:insertError}=await supabase.from("support_tickets").insert({workspace_id:workspaceId,customer_id:customerId,requester_profile_id:user.id,title:String(form.get("title")),description:String(form.get("description")),category:String(form.get("category")),priority:String(form.get("priority")),source:"portal",ticket_number:""}); if(insertError){setError("We couldn't submit the request. Please try again or contact Betanor support.");setSaving(false);return;} formElement.reset();setSaving(false);router.refresh(); }
+ return <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2"><input name="title" required minLength={4} maxLength={180} placeholder="What do you need help with?" className="min-h-11 rounded-lg border px-3 text-sm sm:col-span-2"/><select name="category" className="min-h-11 rounded-lg border px-3 text-sm"><option>General</option>{["Workstation deployment","Windows / Mac","Networking","Video conferencing","Telephony","Hardware / software","Security configuration","Onboarding/offboarding"].map(x=><option key={x}>{x}</option>)}</select><select name="priority" className="min-h-11 rounded-lg border px-3 text-sm"><option value="normal">Normal urgency</option><option value="high">High urgency</option><option value="critical">Critical urgency</option></select><textarea name="description" required minLength={10} rows={4} placeholder="Describe the issue and how it affects your work…" className="rounded-lg border px-3 py-2 text-sm sm:col-span-2"/>{error?<p role="alert" className="text-sm text-red-700 sm:col-span-2">{error}</p>:null}<div className="sm:col-span-2"><Button disabled={saving}>{saving?"Sending request…":"Submit support request"}</Button></div></form>;
+}

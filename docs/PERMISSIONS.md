@@ -13,6 +13,10 @@ final snapshots require `tender.submit`.
 
 ## Authorization model
 
+### IT Support permissions (production migration applied 2026-09-23)
+
+`IT_SUPPORT_TECHNICIAN` receives only `support.read` and `support.respond`; ticket RLS additionally scopes visibility to tickets assigned to the employee linked to `auth.uid()`. `SUPER_ADMIN` and `ADMIN` receive the `support.*` capabilities, including assignment, configuration and reporting. Customer roles receive only `customer.support.read/create/respond`, and customer ticket rows are checked through `private.customer_portal_has_access(customer_id)`. Internal support activity is separately guarded by `support.internal_note`; customer messages are always non-internal. Assignment, status transitions, and customer resolution confirmation are enforced by narrow authenticated RPCs, not direct table updates. The video provider button remains disabled until a provider is configured. Email/Telegram notification preferences enqueue events only; delivery needs the existing async worker/provider configuration.
+
 Authorization has three layers: Supabase Auth identifies a user; an organization membership assigns one or more roles; PostgreSQL RLS restricts rows by organization and responsibility. Role names below are proposals. Permission grants should be capability-based, with role bundles stored in database configuration or version-controlled seed data.
 
 Phase 5 implements this model with a secure `auth.users → profiles` trigger, 18 seeded system roles (including staff/customer role typing), 40 capability records, and database-held role assignments. Identity metadata may set a display name, but never grants a role or permission. The permission helper is in a non-exposed `private` schema, executes with a fixed search path, and is used only by RLS policies.
@@ -27,6 +31,8 @@ The role matrix is a capability summary; its columns are mapped to the master-sp
 | Contracts and projects | all | all | read | manage | staffing read | financial read | read summary | manage own/team | assigned tasks | own contract/project read |
 | Tasks and comments | all | all | read | manage | read assignments | read cost context | read KPI links | team manage | own manage | project visibility only |
 | Candidates and recruitment | all | all | — | — | manage | — | — | hiring scoped | — | — |
+| Support tickets, chat and sessions | all | all | — | — | — | — | — | assigned/team | assigned only | own customer only |
+| Support contracts, SLAs, assets and schedule | all | all | — | — | — | — | — | scoped read | assigned read | own summary |
 | Employees, contracts, leave | all | all | — | staffing read | manage | payroll input read | KPI read | approve team leave | self only | — |
 | Payroll and expenses | all | all | sales expenses | project expenses | payroll input | manage | financial result read | approve scoped | own requests/payslips | — |
 | Strategy, goals, KPIs | all | all | contribute | contribute | people KPI contribute | financial input | manage | team goals/KPIs | own KPIs | — |
@@ -105,9 +111,9 @@ Access status semantics:
 - `active`: login permitted; temporary-password accounts may still be required to change password.
 - `suspended`, `disabled`, `employment_ended`: Auth is banned and profile access is inactive. Historical employee, project, task, approval, letter, document, and audit rows are retained.
 
-## Support permission catalogue (planned)
+## Support permission catalogue (RTSL demo)
 
-Phase B–H will add `support.read`, `support.create`, `support.assign`, `support.respond`, `support.internal_note`, `support.resolve`, `support.close`, `support.reopen`, `support.manage_sla`, `support.manage_contracts`, `support.start_video`, `support.schedule_onsite`, and `support.view_reports`. Staff permissions are workspace-scoped. Customer roles receive only portal-scoped ticket/message/attachment permissions and never `support.internal_note`, employee data, or another customer’s rows.
+Migration `202609230001_it_support_managed_support.sql` adds `support.read`, `support.view_all`, `support.create`, `support.assign`, `support.respond`, `support.internal_note`, `support.manage_contracts`, `support.manage_assets`, `support.manage_schedule`, and `support.view_reports`, plus customer portal permissions `customer.support.read/create/respond`. `IT_SUPPORT_TECHNICIAN` gets assigned-scope read/respond only; Admin/Super Admin get the support management bundle. Customer roles never receive `support.internal_note`, employee data, or another customer's rows. Future `support.resolve`, `support.close`, `support.reopen`, and `support.start_video` capabilities are not created yet; the current status RPC enforces role and transition rules, and video is disabled until configured.
 
 ## Account-control implementation
 

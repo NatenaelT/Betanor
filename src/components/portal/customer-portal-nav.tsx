@@ -7,7 +7,7 @@ import { useState } from "react";
 import { AuthenticatedProfileButton } from "@/components/auth/authenticated-profile-button";
 import { cn } from "@/lib/utils";
 
-const links = [["Dashboard", "/portal"], ["Company", "/about"], ["Services", "/services"], ["Contact", "/contact"], ["Partner", "/partner"]] as const;
+const links = [["Dashboard", "/portal"], ["IT Support", "/portal/support"], ["Company", "/about"], ["Services", "/services"], ["Contact", "/contact"], ["Partner", "/partner"]] as const;
 
 export function CustomerPortalNav({ isStaff }: { isStaff: boolean }) {
   const pathname = usePathname();

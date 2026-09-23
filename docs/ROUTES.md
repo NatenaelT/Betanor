@@ -19,17 +19,25 @@ The route map below records the target App Router surface. Public and core works
 | Tender management | `/workspace/tenders`, `/workspace/tenders/[id]` | tender-scoped staff; guarantees, checklist, submission letter, and final snapshot follow RBAC |
 | Personal area | `/workspace/profile`, `/account/profile` | authenticated staff/customer; own profile fields and private avatar |
 | Employee access API | `/api/admin/employee-access` | HR/admin server boundary; invitation, reset, status, and provisioning actions |
+| Role-based help | `/workspace/help`, `/portal/help` | Signed-in staff and customer manuals; workspace topics are filtered using the current role permissions |
+| Programmer guide | `/workspace/admin/guides` | Admin-only technical guide screen with downloadable Markdown guide |
 
-## Support routes (planned, gated after Phase A)
+## Support routes (IT Support / Managed Support)
 
 | Area | Planned paths | Access |
 |---|---|---|
-| Staff support | `/workspace/support`, `/workspace/support/tickets`, `/workspace/support/customers`, `/workspace/support/sessions`, `/workspace/support/visits`, `/workspace/support/contracts`, `/workspace/support/kb`, `/workspace/support/reports` | support-scoped staff |
-| Customer support | `/portal/support`, `/portal/support/tickets`, `/portal/support/tickets/[id]`, `/portal/support/appointments`, `/portal/support/video/[id]`, `/portal/support/kb` | authenticated customer, tenant-scoped |
-| Public support intake | `/support`, `/support/request` | guest or authenticated customer; rate-limited |
+| Staff support | `/workspace/support`, `/workspace/support/[section]`, `/workspace/support/tickets/new`, `/workspace/support/tickets/[id]` | support-scoped staff |
+| Customer support | `/portal/support`, `/portal/support/tickets/[id]` | authenticated customer, tenant-scoped |
+| Public support intake | future `/support/request` | guest intake is not in this demo module |
 
 Route access is a usability guard only. Each loader, action, API endpoint, and database query must independently authorize access.
 
 Phase 8 implements `/workspace/products` as a protected catalogue console and turns `/products` into a dynamic public catalogue reading only published product records.
 
 Payroll managers can edit draft payroll directly at `/workspace/payslips`; each cycle exposes Excel-compatible, Word-compatible, and PDF downloads through `/api/payroll/cycles/[id]/export/[format]`.
+# IT Support / Managed Support
+
+- `/workspace/support` — assignment-aware staff dashboard.
+- `/workspace/support/[section]` — Customers, Contracts, Tickets, Remote, On-site, Assets, Lifecycle, Calendar, Tasks, Documents, SLA, Activity and Reports.
+- `/workspace/support/tickets/[id]` — ticket detail, service workflow, activity and live customer chat.
+- `/portal/support` — customer support request and ticket status view.

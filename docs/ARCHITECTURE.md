@@ -38,6 +38,7 @@ Customer portal ──────┘
 | CRM | customers, contacts, leads, opportunities, consultations, conversations |
 | Sales | RFQs, quotation versions, pricing, acceptance |
 | Delivery | contracts, projects, tasks, milestones |
+| IT Support | support contracts, SLA, tickets, sessions, assets, schedules and lifecycle work; reuses canonical customer, employee, project, task, chat, document and notification records |
 | HR | candidates, recruitment, employees, employment contracts, leave, payroll inputs |
 | Finance | income, expenses, receivables/payables, payments, payroll outputs, budgets, financial results |
 | Strategy | strategies, goals, initiatives, KPIs, reviews |
@@ -68,9 +69,9 @@ Supabase Auth owns credentials and sessions. `profiles` is the application ident
 
 Provisioning is performed only by the server-side `admin-user-management` Edge Function. It creates/invites Auth, assigns the database role, creates or links the employee, and records access status. Failures clean up newly-created Auth and employee rows. Temporary-password accounts set `profiles.password_change_required`; the first successful sign-in must complete `/account/change-password`. No password is stored in Betanor tables.
 
-## Support architecture boundary (planned Phases B–H)
+## Support architecture boundary (demo module)
 
-Support will reuse `customers`, `contracts`, `projects`, `profiles`, `notifications`, `audit_events`, private Storage, and the existing chat primitives. New support tables will be tenant-scoped and customer portal policies will be separate from staff workspace policies. Video will load dynamically behind a provider abstraction with short-lived server-authorized tokens. Notification delivery is asynchronous: the business transaction commits first, then an event/outbox worker delivers in-app, email, Telegram, or future push/SMS.
+The RTSL support demo reuses `customers`, `contracts`, `projects`, `employees`, `tasks`, `profiles`, `notifications`, private chat attachments and existing chat primitives. New support tables are tenant-scoped and customer portal policies are separate from staff workspace policies. Ticket numbering is generated in the database via an atomic per-workspace/year sequence. Assignment, status changes and customer resolution confirmation are authenticated database RPCs. Video remains provider-gated; no unsigned meeting links are generated. In-app notifications are stored synchronously with the business event; email/Telegram delivery is only queued in an outbox and is not delivered until a worker/provider is configured.
 # Tender and workspace extensions (September 2026)
 
 Tender management is a separate bounded context inside the existing workspace.

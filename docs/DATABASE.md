@@ -24,6 +24,35 @@ The physical model uses `workspaces` as the tenant/company boundary, UUID primar
 
 ## Conceptual ERD
 
+### IT Support / Managed Support (production migration applied 2026-09-23)
+
+`202609230001_it_support_managed_support.sql` adds the support service domain without a second customer, employee, task, document, chat, or notification identity model:
+
+```mermaid
+erDiagram
+  CUSTOMERS ||--o{ SUPPORT_CONTRACTS : covered_by
+  CONTRACTS o|--o{ SUPPORT_CONTRACTS : commercial_basis
+  PROJECTS o|--o{ SUPPORT_CONTRACTS : delivery_context
+  SUPPORT_SLA_POLICIES ||--o{ SUPPORT_CONTRACTS : sets_targets
+  CUSTOMERS ||--o{ SUPPORT_TICKETS : requests
+  SUPPORT_CONTRACTS o|--o{ SUPPORT_TICKETS : covers
+  PROJECTS o|--o{ SUPPORT_TICKETS : linked_work
+  EMPLOYEES o|--o{ SUPPORT_TICKETS : assigned_to
+  SUPPORT_TICKETS ||--o{ SUPPORT_TICKET_EVENTS : history
+  SUPPORT_TICKETS ||--o| CHAT_CONVERSATIONS : communication
+  CHAT_CONVERSATIONS ||--o{ CHAT_MESSAGES : messages
+  SUPPORT_TICKETS ||--o{ SUPPORT_SESSIONS : remote_video_onsite
+  CUSTOMERS ||--o{ SUPPORT_ASSETS : owns
+  CUSTOMERS ||--o{ SUPPORT_SCHEDULE_ENTRIES : scheduled_for
+  PROJECTS o|--o{ TASKS : uses_existing_project
+  TASKS ||--o| SUPPORT_TASK_LINKS : support_context
+  PROFILES ||--o| SUPPORT_NOTIFICATION_PREFERENCES : sets
+```
+
+Tickets carry customer, optional existing commercial support contract/project, customer requester, and an optional assigned employee. Support conversations extend `chat_conversations` via `support_ticket_id`; messages, presence, private chat attachments and customer portal access remain in the existing chat system. Support tasks link to canonical `tasks`; documents are linked through existing `document_links`; in-app notifications use `notifications`, while email/Telegram requests are queued in a support outbox. No email/Telegram delivery worker is currently wired to that outbox, so those channels remain pending separate provider/worker configuration. `support_sessions` stores session metadata only: it does not create a video meeting or persist provider secrets. Lifecycle records describe customer IT joiner/leaver work and do not duplicate HR employee onboarding.
+
+The RTSL demonstration uses canonical `customers` and `projects`, a demonstration support contract/SLA, example laptops/workstations, sample tickets/tasks/lifecycle checklists, and a Thursday 09:00–12:00 `Africa/Addis_Ababa` visit entry. Demo customer/project rows are idempotently seeded by the migration. Supabase Auth identities and credentials must be provisioned through the existing protected user-management workflow, never by SQL.
+
 ```mermaid
 erDiagram
   ORGANIZATION ||--o{ MEMBERSHIP : has
