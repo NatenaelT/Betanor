@@ -16,11 +16,11 @@ Each workflow requires explicit state transitions, approval rules, notifications
 
 12. **Tender to final submission:** authorized staff create a tender → assign proposal/cost-proposal tasks → add mandatory requirements → request/issue CPO or bank guarantee records → prepare a linked official submission letter → complete the final checklist → authorized submitter confirms the immutable snapshot → tender moves to `SUBMITTED`. A second submission is rejected by the unique tender constraint; corrections use a new tender correspondence record or controlled tender amendment rather than rewriting the snapshot.
 
-13. **Tender security expiry:** guarantee issue/expiry and responsible staff are recorded against the tender → the idempotent daily reminder function creates 14/7/3/1-day in-app notification events (and leaves email/Telegram delivery to the existing asynchronous notification workers) → release/return status and date are recorded without deleting the original security history.
+13. **Tender security expiry:** guarantee issue/expiry and responsible staff are recorded against the tender → the idempotent daily reminder function creates 14/7/3/1-day in-app notification events (and queues email/Telegram delivery asynchronously) → release/return status and date are recorded without deleting the original security history.
 
 14. **RTSL support request:** authenticated RTSL contact submits a support request → database assigns `BTNR-TKT-YYYY-XXXXX` under a concurrency-safe yearly sequence → creates the canonical chat conversation and initial message → assignment and status changes use RBAC-checked RPCs → technician communicates with the customer through realtime chat and private attachments → remote/video/onsite session details and work log are recorded → technician marks resolved → customer confirms to close. The RTSL recurring onsite window is Thursday 09:00–12:00 East Africa Time.
 
-15. **Support notifications:** ticket insert/assignment/status transition writes in-app notification rows where enabled and queues email/Telegram outbox events according to each profile's support preferences. The transaction does not wait for delivery. No dispatcher is currently connected, so outbox channels require worker/provider configuration before delivery.
+15. **Support notifications:** ticket insert/assignment/status transition writes in-app notification rows where enabled and queues email/Telegram outbox events according to each profile's support preferences. Telegram linking and message delivery use the same Supabase Edge Function; pg_net kicks it after enqueue and a one-minute Supabase Cron job retries queued events. Each attempt occurs asynchronously and cannot hold up a ticket/chat transaction.
 
 ## Cross-workflow controls
 
@@ -52,6 +52,10 @@ Authorized participant requests video → server checks ticket membership and cr
 
 ### Notifications
 
-Business transaction commits → durable notification event is created → in-app delivery uses scoped Supabase Realtime; email/Telegram/push workers deliver asynchronously with retry and idempotency. A slow provider never blocks ticket save, employee provisioning, or status transitions.
+Business transaction commits → durable notification event is created → in-app delivery uses scoped Supabase Realtime; email and Telegram workers deliver asynchronously with retry and webhook-update idempotency. A slow provider never blocks ticket save, employee provisioning, or status transitions.
+
+### Telegram chat linking and messaging
+
+An administrator creates the official bot with BotFather and stores `TELEGRAM_BOT_TOKEN` as a Supabase Edge Function secret → a user with `settings.manage` configures the Telegram webhook from System Configuration → a signed-in user generates a single-use link in My Profile → Telegram `/start` consumes its hashed 10-minute challenge → the bot lists only conversations currently authorized for that Betanor profile → selecting one sets the active thread → plain-text replies are inserted into canonical `chat_messages` and appear in the portal in real time. Users can switch threads with `/tickets`; attachments/screenshots remain in the portal chat. Customer accounts cannot see staff-only conversations; staff-only Telegram chat requires `chat.manage`; internal notes in customer/ticket conversations are never forwarded.
 
 Phase B–H will not be started until Phase A checks and acceptance are complete.

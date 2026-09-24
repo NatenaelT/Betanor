@@ -54,7 +54,7 @@ Add a dynamically loaded provider adapter (WebRTC or approved provider), short-l
 
 ### Phase G — continuous notifications
 
-Normalize event creation and asynchronous delivery for staff/customer in-app, email, Telegram, and future push/SMS. Add preferences, retries, idempotency, and scoped Realtime badges.
+In-app and Telegram delivery now reuse the scoped notification/outbox architecture with per-user preferences, asynchronous retry, and Telegram update deduplication. Email provider delivery, future push/SMS, and broader event coverage remain to be completed separately.
 
 ### Phase H — support dashboards and KPI/reporting
 

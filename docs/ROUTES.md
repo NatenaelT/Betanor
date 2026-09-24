@@ -17,7 +17,7 @@ The route map below records the target App Router surface. Public and core works
 | Content & docs | `/workspace/products`, `/workspace/services`, `/workspace/insights`, `/workspace/cms`, `/workspace/documents`, `/workspace/templates` | scoped staff |
 | Administration | `/workspace/admin/users`, `/workspace/admin/roles`, `/workspace/admin/departments`, `/workspace/admin/workflows`, `/workspace/admin/settings`, `/workspace/admin/audit-logs` | administrators |
 | Tender management | `/workspace/tenders`, `/workspace/tenders/[id]` | tender-scoped staff; guarantees, checklist, submission letter, and final snapshot follow RBAC |
-| Personal area | `/workspace/profile`, `/account/profile` | authenticated staff/customer; own profile fields and private avatar |
+| Personal area | `/workspace/profile`, `/account/profile` | authenticated staff/customer; own profile, private avatar, Telegram link and notification preference |
 | Employee access API | `/api/admin/employee-access` | HR/admin server boundary; invitation, reset, status, and provisioning actions |
 | Role-based help | `/workspace/help`, `/portal/help` | Signed-in staff and customer manuals; workspace topics are filtered using the current role permissions |
 | Programmer guide | `/workspace/admin/guides` | Admin-only technical guide screen with downloadable Markdown guide |
@@ -41,3 +41,5 @@ Payroll managers can edit draft payroll directly at `/workspace/payslips`; each 
 - `/workspace/support/[section]` — Customers, Contracts, Tickets, Remote, On-site, Assets, Lifecycle, Calendar, Tasks, Documents, SLA, Activity and Reports.
 - `/workspace/support/tickets/[id]` — ticket detail, service workflow, activity and live customer chat.
 - `/portal/support` — customer support request and ticket status view.
+
+Telegram is configured from the existing `/workspace/admin/settings` page (`settings.manage`) and linked from `/workspace/profile` or `/account/profile`; the Telegram webhook and dispatcher are server-side Supabase Edge Function actions, not public application pages.

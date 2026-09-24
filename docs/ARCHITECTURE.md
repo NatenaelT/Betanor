@@ -2,7 +2,7 @@
 
 ## Audit baseline
 
-The repository is a running Next.js App Router application deployed on Vercel and backed by Supabase Auth, PostgreSQL, Storage, and Realtime. The tracked migrations are the source of truth for the current schema. The current production slice includes the public/customer site, staff workspace, CRM/sales, projects/tasks, HR/leave/recruitment, payroll/finance, CMS/catalogue, letters, notifications, and authenticated realtime chat. This document is the maintained architecture record for the updated master specification; support delivery is planned in gated phases and is not implemented by this change.
+The repository is a running Next.js App Router application deployed on Vercel and backed by Supabase Auth, PostgreSQL, Storage, and Realtime. The tracked migrations are the source of truth for the current schema. The current production slice includes the public/customer site, staff workspace, CRM/sales, projects/tasks, HR/leave/recruitment, payroll/finance, CMS/catalogue, letters, notifications, and authenticated realtime chat. IT Support and Telegram chat/notification delivery reuse these shared platform services; Telegram credentials and webhook transport secrets remain server-side.
 
 ## Platform shape
 
@@ -46,7 +46,7 @@ Customer portal ──────┘
 
 ## Integration boundaries
 
-Use an outbox/event table for externally visible effects (email, PDF generation, accounting/HR integrations). A worker consumes idempotent events. Initial integrations, payroll jurisdiction, accounting system, email provider, and chat channel are intentionally undecided.
+Use an outbox/event table for externally visible effects (email, PDF generation, Telegram, accounting/HR integrations). The Telegram Edge Function consumes the existing support outbox asynchronously, applies user preferences, retries failures, and never delays the source business transaction. Telegram messages are bridged into canonical `chat_messages`; the portal remains the source of truth.
 
 ## Non-functional baseline
 
@@ -71,7 +71,7 @@ Provisioning is performed only by the server-side `admin-user-management` Edge F
 
 ## Support architecture boundary (demo module)
 
-The RTSL support demo reuses `customers`, `contracts`, `projects`, `employees`, `tasks`, `profiles`, `notifications`, private chat attachments and existing chat primitives. New support tables are tenant-scoped and customer portal policies are separate from staff workspace policies. Ticket numbering is generated in the database via an atomic per-workspace/year sequence. Assignment, status changes and customer resolution confirmation are authenticated database RPCs. Video remains provider-gated; no unsigned meeting links are generated. In-app notifications are stored synchronously with the business event; email/Telegram delivery is only queued in an outbox and is not delivered until a worker/provider is configured.
+The RTSL support demo reuses `customers`, `contracts`, `projects`, `employees`, `tasks`, `profiles`, `notifications`, private chat attachments and existing chat primitives. New support tables are tenant-scoped and customer portal policies are separate from staff workspace policies. Ticket numbering is generated in the database via an atomic per-workspace/year sequence. Assignment, status changes and customer resolution confirmation are authenticated database RPCs. Video remains provider-gated; no unsigned meeting links are generated. Telegram delivery uses a private transport secret in Supabase Vault, a one-time user link challenge, and an Edge Function webhook/dispatcher. Customer and staff authorization is checked against current Betanor access each time a conversation is listed or messaged; staff-only chats are limited to staff with `chat.manage`, and internal notes in customer conversations are never bridged.
 # Tender and workspace extensions (September 2026)
 
 Tender management is a separate bounded context inside the existing workspace.
