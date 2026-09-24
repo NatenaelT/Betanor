@@ -100,14 +100,43 @@ async function sendText(chatId: number | string, text: string, replyMarkup?: Jso
   });
 }
 
-function portalUrl(accountType: string, ticketId?: string, conversationId?: string) {
+function portalUrl(accountType: string, payload: Record<string, unknown>, ticketId?: string, conversationId?: string) {
+  const entityType = clean(payload.entity_type, 64).toLowerCase();
+  const entityId = clean(payload.entity_id, 64);
+  const safeEntityId = /^[0-9a-f-]{36}$/i.test(entityId) ? encodeURIComponent(entityId) : "";
   if (ticketId) {
     return accountType === "customer"
       ? `https://betanor.et/portal/support/tickets/${encodeURIComponent(ticketId)}`
       : `https://betanor.et/workspace/support/tickets/${encodeURIComponent(ticketId)}`;
   }
   if (conversationId && accountType === "staff") return "https://betanor.et/workspace/chats";
-  return accountType === "customer" ? "https://betanor.et/portal" : "https://betanor.et/workspace/chats";
+  if (accountType === "customer") {
+    return entityType === "support_ticket" && safeEntityId
+      ? `https://betanor.et/portal/support/tickets/${safeEntityId}`
+      : "https://betanor.et/portal";
+  }
+
+  const workspaceRoutes: Record<string, string> = {
+    tender: "/workspace/tenders",
+    letter: "/workspace/letters",
+    project: "/workspace/projects",
+    task: "/workspace/tasks",
+    employee: "/workspace/employees",
+    leave_request: "/workspace/leave",
+    payroll_cycle: "/workspace/payslips",
+    payslip: "/workspace/payslips",
+    expense: "/workspace/expenses",
+    invoice: "/workspace/invoices",
+    quotation: "/workspace/quotations",
+    contract: "/workspace/contracts",
+    rfq: "/workspace/rfqs",
+    chat_conversation: "/workspace/chats",
+    support_ticket: "/workspace/support/tickets",
+  };
+  const route = workspaceRoutes[entityType];
+  if (!route) return "https://betanor.et/workspace";
+  const routeOnlyTypes = new Set(["leave_request", "payroll_cycle", "payslip", "rfq", "chat_conversation"]);
+  return `https://betanor.et${route}${safeEntityId && !routeOnlyTypes.has(entityType) ? `/${safeEntityId}` : ""}`;
 }
 
 async function openTickets(admin: ReturnType<typeof getAdmin>, chatId: number, profileId: string) {
@@ -240,7 +269,7 @@ function notificationText(row: NotificationRow, accountType: string) {
   const text = `${prefix}${eventText[event] ?? "You have a new Betanor notification."}`;
   return {
     text,
-    url: portalUrl(accountType, ticketId || undefined, conversationId || undefined),
+    url: portalUrl(accountType, payload, ticketId || undefined, conversationId || undefined),
   };
 }
 

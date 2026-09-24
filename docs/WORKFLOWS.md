@@ -52,7 +52,7 @@ Authorized participant requests video → server checks ticket membership and cr
 
 ### Notifications
 
-Business transaction commits → durable notification event is created → in-app delivery uses scoped Supabase Realtime; email and Telegram workers deliver asynchronously with retry and webhook-update idempotency. A slow provider never blocks ticket save, employee provisioning, or status transitions.
+Business transaction commits → durable notification row is created → in-app delivery uses scoped Supabase Realtime; Telegram fan-out checks the linked profile's opt-in and queues a generic alert through the retryable outbox. Existing chat/support producers avoid duplicate fan-out. Notification titles and bodies are not sent to Telegram; a safe, allowlisted portal destination is included. Email and Telegram workers deliver asynchronously with retry and webhook-update idempotency. A slow provider never blocks ticket save, employee provisioning, or status transitions.
 
 ### Telegram chat linking and messaging
 

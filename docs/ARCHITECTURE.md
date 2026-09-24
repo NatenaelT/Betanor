@@ -46,7 +46,7 @@ Customer portal ──────┘
 
 ## Integration boundaries
 
-Use an outbox/event table for externally visible effects (email, PDF generation, Telegram, accounting/HR integrations). The Telegram Edge Function consumes the existing support outbox asynchronously, applies user preferences, retries failures, and never delays the source business transaction. Telegram messages are bridged into canonical `chat_messages`; the portal remains the source of truth.
+Use an outbox/event table for externally visible effects (email, PDF generation, Telegram, accounting/HR integrations). The Telegram Edge Function consumes the existing support outbox asynchronously; scoped chat/support events use their existing producers, and other in-app notifications fan out only for linked, opted-in profiles. Sensitive notification titles and bodies are not copied to Telegram. Delivery retries never delay the source business transaction. Telegram messages are bridged into canonical `chat_messages`; the portal remains the source of truth.
 
 ## Non-functional baseline
 

@@ -1,6 +1,6 @@
 # Betanor Telegram integration
 
-Telegram is an optional channel for the existing Betanor chat and support notification systems. Betanor remains the source of truth: Telegram replies are written to existing `chat_messages`, and notification events use `support_notification_outbox`.
+Telegram is an optional channel for existing Betanor chat and application notifications. Betanor remains the source of truth: Telegram replies are written to existing `chat_messages`, support/chat events use the scoped `support_notification_outbox` path, and other in-app notifications are fanned out to that same retryable outbox only when the recipient has opted in and linked Telegram.
 
 ## One-time administrator setup
 
@@ -24,7 +24,7 @@ Customer users can only access conversations for their own active customer porta
 
 The database asynchronously invokes the dispatcher after enqueue; Supabase Cron retries every minute if the immediate request is unavailable. Failures use bounded exponential backoff, and abandoned processing claims are recovered after five minutes. Each notification is sent only to an active profile with an active Telegram link and `telegram = true`. Chat message bodies are not copied into push-notification text; the bot sends a generic event plus an authenticated portal link. Email remains on its existing provider path and is outside this Telegram change.
 
-Delivery is at-least-once across external network failures: an uncertain provider response can result in a duplicate alert. Telegram `update_id` deduplicates inbound text replies before insertion. Files remain private in Supabase Storage and are not copied into Telegram.
+Delivery is at-least-once across external network failures: an uncertain provider response can result in a duplicate alert. Telegram `update_id` deduplicates inbound text replies before insertion. Notifications contain only a generic alert and an allowlisted portal destination; notification titles and bodies are deliberately not copied to Telegram because HR, payroll, finance, and other records may contain sensitive details. Files remain private in Supabase Storage and are not copied into Telegram.
 
 ## Troubleshooting
 
