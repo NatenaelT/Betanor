@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 
 import { CustomerChatWidget } from "@/components/portal/customer-chat-widget";
+import { FieldTooltips } from "@/components/ui/field-tooltips";
 import { BETANOR_LOGO_DATA_URI } from "@/lib/brand-assets";
 import { loadCachedStyleSettings } from "@/lib/public-cache";
 import { googleFontsHref } from "@/lib/style-settings";
@@ -56,7 +57,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="stylesheet" href={googleFontsHref(styleSettings)} />
       </head>
-      <body className="min-h-full flex flex-col" style={style}>{children}<CustomerChatWidget /></body>
+      <body className="min-h-full flex flex-col" style={style}>{children}<CustomerChatWidget /><FieldTooltips /></body>
     </html>
   );
 }

@@ -13,15 +13,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const body = await request.json().catch(() => ({}));
   const rows = Array.isArray(body?.payslips) ? body.payslips : [];
   if (!rows.length || rows.length > 500) return NextResponse.json({ error: "Provide one or more payslips." }, { status: 422 });
-  const { data: cycle } = await supabase.from("payroll_cycles").select("id,status,published_at").eq("id", id).eq("workspace_id", access.workspaceId).maybeSingle();
-  if (!cycle) return NextResponse.json({ error: "Payroll cycle not found." }, { status: 404 });
-  if (cycle.published_at || !["draft", "submitted"].includes(cycle.status)) return NextResponse.json({ error: "Only draft or submitted payroll can be edited." }, { status: 409 });
+  const seen = new Set<string>();
+  const updates: Array<{ id: string; gross_pay: number; deductions: number }> = [];
   for (const row of rows) {
+    if (!row || typeof row !== "object") return NextResponse.json({ error: "Each payroll row must be an object." }, { status: 422 });
     const gross = Number(row.grossPay);
     const deductions = Number(row.deductions);
-    if (!row.id || !Number.isFinite(gross) || !Number.isFinite(deductions) || gross < 0 || deductions < 0 || deductions > gross) return NextResponse.json({ error: "Payroll values must be valid and deductions cannot exceed gross pay." }, { status: 422 });
-    const { error } = await supabase.from("payslips").update({ gross_pay: gross, deductions, net_pay: gross - deductions }).eq("id", row.id).eq("payroll_cycle_id", id).eq("status", "draft");
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    const slipId = typeof row.id === "string" ? row.id : "";
+    if (!slipId || seen.has(slipId) || !Number.isFinite(gross) || !Number.isFinite(deductions) || gross < 0 || deductions < 0 || gross > 999_999_999_999.99 || deductions > gross || Math.abs(gross * 100 - Math.round(gross * 100)) > 0.0001 || Math.abs(deductions * 100 - Math.round(deductions * 100)) > 0.0001) {
+      return NextResponse.json({ error: "Payroll rows must have unique slip IDs and valid amounts. Deductions cannot exceed gross pay, and amounts must be limited to two decimal places." }, { status: 422 });
+    }
+    seen.add(slipId);
+    updates.push({ id: slipId, gross_pay: gross, deductions });
   }
-  return NextResponse.json({ saved: true });
+  const { data: updatedCount, error } = await supabase.rpc("update_draft_payroll_payslips", { p_cycle_id: id, p_rows: updates });
+  if (error) {
+    const status = error.code === "42501" ? 403 : error.code === "PGRST116" ? 404 : error.code === "22023" ? 409 : 400;
+    return NextResponse.json({ error: error.message || "Could not save payroll." }, { status });
+  }
+  return NextResponse.json({ saved: true, updatedCount: Number(updatedCount ?? 0) });
 }

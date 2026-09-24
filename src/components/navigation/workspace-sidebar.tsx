@@ -22,6 +22,7 @@ const sections: NavigationSection[] = [
   { label: "Tenders", items: [{ href: "/workspace/tenders", label: "Tender management", description: "Proposals, guarantees & submissions", permission: ["tender.read", "tender.create", "tender.view_all"] }] },
   { label: "System", items: [{ href: "/workspace/cms", label: "Content management", permission: ["cms.read", "cms.write", "cms.publish"] }, { href: "/workspace/products", label: "Product catalogue", permission: ["cms.read", "cms.write", "cms.publish"] }, { href: "/workspace/admin/settings", label: "System configuration", permission: "settings.manage" }, { href: "/workspace/style-guide", label: "Brand style", permission: "style.manage", superAdminOnly: true }] },
   { label: "Administration", items: [{ href: "/workspace/admin/users", label: "Users & access", description: "Roles and customer portal links", permission: "users.manage" }, { href: "/workspace/admin/departments", label: "Departments & positions", description: "Conditional organization structure", permission: ["hr.manage", "users.manage"] }] },
+  { label: "Help", items: [{ href: "/workspace/help", label: "Help & user manual", description: "Guidance for your assigned role" }, { href: "/workspace/admin/guides", label: "Programmer guide", description: "Download the technical guide", permission: ["users.manage", "settings.manage"] }] },
 ];
 
 function NavigationContents({ close, permissionCodes = [], roleCodes = [] }: { close?: () => void; permissionCodes?: string[]; roleCodes?: string[] }) {
@@ -51,8 +52,8 @@ function NavigationContents({ close, permissionCodes = [], roleCodes = [] }: { c
 export function WorkspaceSidebar({ permissionCodes = [], roleCodes = [] }: { permissionCodes?: string[]; roleCodes?: string[] }) {
   const [isOpen, setIsOpen] = useState(false);
   return <>
-    <button aria-controls="workspace-mobile-navigation" aria-expanded={isOpen} aria-label="Open workspace navigation" className="fixed top-3 left-4 z-30 grid size-10 place-items-center rounded-lg border border-[var(--betanor-field-border)] bg-[var(--betanor-header-bg)] text-lg text-[var(--betanor-header-text)] shadow-sm lg:hidden" onClick={() => setIsOpen(true)}>☰</button>
-    <aside className="hidden h-auto min-h-screen w-72 shrink-0 border-r-2 border-[var(--betanor-nav-edge)] bg-[var(--betanor-nav-bg)] px-5 py-6 text-[var(--betanor-nav-text)] lg:sticky lg:top-0 lg:block"><NavigationContents permissionCodes={permissionCodes} roleCodes={roleCodes} /></aside>
+    <button aria-controls="workspace-mobile-navigation" aria-expanded={isOpen} aria-label="Open workspace navigation" className="fixed top-3 left-4 z-30 grid size-10 place-items-center rounded-lg border border-[var(--betanor-field-border)] bg-[var(--betanor-header-bg)] text-lg text-[var(--betanor-header-text)] shadow-sm lg:hidden print:hidden" onClick={() => setIsOpen(true)}>☰</button>
+    <aside className="hidden h-auto min-h-screen w-72 shrink-0 border-r-2 border-[var(--betanor-nav-edge)] bg-[var(--betanor-nav-bg)] px-5 py-6 text-[var(--betanor-nav-text)] lg:sticky lg:top-0 lg:block print:hidden"><NavigationContents permissionCodes={permissionCodes} roleCodes={roleCodes} /></aside>
     <Drawer isOpen={isOpen} onClose={() => setIsOpen(false)} title="Workspace navigation"><div className="h-full overflow-y-auto px-5 py-6" id="workspace-mobile-navigation"><button aria-label="Close workspace navigation" className="absolute top-4 right-4 grid size-9 place-items-center rounded-lg text-[var(--betanor-nav-text)] hover:bg-[var(--betanor-nav-hover)]" onClick={() => setIsOpen(false)}>×</button><NavigationContents close={() => setIsOpen(false)} permissionCodes={permissionCodes} roleCodes={roleCodes} /></div></Drawer>
   </>;
 }
