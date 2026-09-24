@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { FieldLabel, Input } from "@/components/ui/input";
 import { createProject } from "@/app/workspace/projects/actions";
 import { createClient } from "@/lib/supabase/server";
+import { relationArray } from "@/lib/supabase/relations";
 import { resolveWorkspace } from "@/lib/workspace-context";
 
 export const dynamic = "force-dynamic";
@@ -35,10 +36,10 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
     supabase.from("customers").select("id,name").order("name"),
     supabase.from("contracts").select("id,title").order("created_at", { ascending: false }),
     canManageProjects ? supabase.from("employees").select("id,first_name,last_name,employee_number").eq("employment_status", "active").order("first_name") : Promise.resolve({ data: [] }),
-    canManageProjects ? supabase.from("departments").select("id,name").eq("is_active", true).order("name") : Promise.resolve({ data: [] }),
+    canManageProjects ? supabase.from("departments").select("id,name").eq("status", "active").order("name") : Promise.resolve({ data: [] }),
     supabase.from("projects").select("id,project_code,name,status,starts_on,ends_on,budget_amount,customers(name),contracts(title),milestones(id)").order("created_at", { ascending: false }).limit(100),
   ]);
-  const projectRows = projects.data ?? [];
+  const projectRows = (projects.data ?? []).map((project) => ({ ...project, customers: relationArray(project.customers) }));
 
   return <main className="mx-auto max-w-7xl px-5 py-8 sm:px-6 lg:px-8 lg:py-10">
     <p className="text-sm font-semibold tracking-[0.14em] text-[var(--betanor-blue)] uppercase">Work · Administration</p>

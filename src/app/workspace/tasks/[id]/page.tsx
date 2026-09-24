@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { FieldLabel, Input } from "@/components/ui/input";
 import { ChatRealtimeBridge } from "@/components/chat/chat-realtime-bridge";
 import { createClient } from "@/lib/supabase/server";
+import { relationArray } from "@/lib/supabase/relations";
 import { resolveWorkspace } from "@/lib/workspace-context";
 
 export const dynamic = "force-dynamic";
@@ -68,9 +69,9 @@ export default async function TaskDetailPage({ params, searchParams }: { params:
     access.userId ? supabase.from("employees").select("id").eq("profile_id", access.userId).maybeSingle() : Promise.resolve({ data: null }),
   ]);
   if (error || !task) notFound();
-  const project = task.projects?.[0];
-  const milestone = task.milestones?.[0];
-  const assignments = task.task_assignees ?? [];
+  const project = relationArray(task.projects)[0];
+  const milestone = relationArray(task.milestones)[0];
+  const assignments = (task.task_assignees ?? []).map((assignment) => ({ ...assignment, employees: relationArray(assignment.employees) }));
   const comments = [...(task.task_comments ?? [])].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
   const groupMessages = telegramMessages ?? [];
   const canEditTask = access.hasStaffRole && ["task.edit", "task.create", "project.manage"].some((permission) => access.permissions.has(permission));

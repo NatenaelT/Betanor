@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldLabel, Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/server";
+import { relationArray } from "@/lib/supabase/relations";
 import { resolveWorkspace } from "@/lib/workspace-context";
 
 export const dynamic = "force-dynamic";
@@ -76,7 +77,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     canAssignTasks ? supabase.from("employees").select("id,first_name,last_name,employee_number").eq("employment_status", "active").not("profile_id", "is", null).order("first_name") : Promise.resolve({ data: [] }),
     supabase.from("tasks").select("id,task_code,title,status,priority,starts_on,due_on,project_id,milestone_id,projects(name,project_code),milestones(title),task_assignees(employee_id,employees(first_name,last_name))").order("due_on", { ascending: true, nullsFirst: false }).limit(100),
   ]);
-  const taskRows = tasks.data ?? [];
+  const taskRows = (tasks.data ?? []).map((task) => ({ ...task, projects: relationArray(task.projects), milestones: relationArray(task.milestones), task_assignees: (task.task_assignees ?? []).map((assignment) => ({ ...assignment, employees: relationArray(assignment.employees) })) }));
 
   return <main className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
     <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">

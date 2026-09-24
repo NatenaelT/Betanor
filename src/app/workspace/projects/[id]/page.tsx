@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { FieldLabel, Input } from "@/components/ui/input";
 import { updateProject } from "@/app/workspace/projects/actions";
 import { createClient } from "@/lib/supabase/server";
+import { relationArray } from "@/lib/supabase/relations";
 import { resolveWorkspace } from "@/lib/workspace-context";
 
 export const dynamic = "force-dynamic";
@@ -63,10 +64,11 @@ export default async function ProjectDetailPage({ params, searchParams }: {
     canManageProjects ? supabase.from("customers").select("id,name").order("name") : Promise.resolve({ data: [] }),
     canManageProjects ? supabase.from("contracts").select("id,title").order("created_at", { ascending: false }) : Promise.resolve({ data: [] }),
     canManageProjects ? supabase.from("employees").select("id,first_name,last_name,employee_number").eq("employment_status", "active").order("first_name") : Promise.resolve({ data: [] }),
-    canManageProjects ? supabase.from("departments").select("id,name").eq("is_active", true).order("name") : Promise.resolve({ data: [] }),
+    canManageProjects ? supabase.from("departments").select("id,name").eq("status", "active").order("name") : Promise.resolve({ data: [] }),
   ]);
-  const { data: project, error } = projectResult;
-  if (error || !project) notFound();
+  const { data: projectData, error } = projectResult;
+  if (error || !projectData) notFound();
+  const project = { ...projectData, customers: relationArray(projectData.customers), contracts: relationArray(projectData.contracts) };
   const milestones = project.milestones ?? [];
   const tasks = project.tasks ?? [];
 
