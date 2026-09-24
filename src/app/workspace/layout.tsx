@@ -26,7 +26,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   const avatarUrl = profile?.avatar_path ? (await supabase.storage.from("betanor-profile-avatars").createSignedUrl(profile.avatar_path, 900)).data?.signedUrl : null;
   return (
     <div className="flex min-h-screen bg-[var(--betanor-surface)]">
-      <WorkspaceSidebar permissionCodes={[...access.permissions]} roleCodes={[...access.roleCodes]} />
+      <WorkspaceSidebar permissionCodes={[...access.permissions]} roleCodes={[...access.roleCodes]} hasStaffRole={access.hasStaffRole} />
       <div className="min-w-0 flex-1">
         <WorkspaceTopbar email={email} displayName={profile?.full_name} avatarUrl={avatarUrl} />
         {children}

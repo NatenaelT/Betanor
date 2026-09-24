@@ -100,6 +100,110 @@ async function sendText(chatId: number | string, text: string, replyMarkup?: Jso
   });
 }
 
+const mirroredMimeTypes = new Set([
+  "application/pdf",
+  "application/zip",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+]);
+
+function safeAttachmentName(value: unknown) {
+  const input = clean(value, 140).replace(/[\\/]/g, "_").replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  return input.replace(/[^a-zA-Z0-9._ ()-]/g, "_").slice(0, 120) || "telegram-attachment";
+}
+
+async function mirrorGroupAttachment(admin: ReturnType<typeof getAdmin>, message: JsonRecord, chatId: string) {
+  const document = message.document as JsonRecord | undefined;
+  const photos = Array.isArray(message.photo) ? message.photo as JsonRecord[] : [];
+  const photo = photos.at(-1);
+  const media = document ?? photo;
+  if (!media || typeof media.file_id !== "string") return null;
+
+  const mimeType = document ? clean(document.mime_type, 120).toLowerCase() : "image/jpeg";
+  const fileSize = typeof media.file_size === "number" ? media.file_size : 0;
+  if (!mirroredMimeTypes.has(mimeType) || fileSize < 1 || fileSize > 10 * 1024 * 1024) {
+    return { note: "[Telegram attachment not mirrored: file type is unsupported or file exceeds the 10 MB portal limit.]" };
+  }
+
+  const file = await telegram("getFile", { file_id: media.file_id }) as { file_path?: string };
+  if (!file.file_path || file.file_path.includes("..")) throw new Error("Telegram did not return a safe attachment path.");
+  const response = await fetch(`https://api.telegram.org/file/bot${getBotToken()}/${file.file_path}`, { signal: AbortSignal.timeout(12_000) });
+  if (!response.ok) throw new Error("Could not download a Telegram attachment.");
+  const bytes = await response.arrayBuffer();
+  if (bytes.byteLength < 1 || bytes.byteLength > 10 * 1024 * 1024) {
+    return { note: "[Telegram attachment not mirrored: file exceeds the 10 MB portal limit.]" };
+  }
+
+  const messageId = typeof message.message_id === "number" ? String(message.message_id) : crypto.randomUUID();
+  const fileName = safeAttachmentName(document?.file_name ?? (photo ? `telegram-photo-${messageId}.jpg` : "telegram-file"));
+  const storagePath = `telegram-group/${chatId.replace(/[^0-9]/g, "")}/${messageId}/${fileName}`;
+  const { error } = await admin.storage.from("betanor-chat-attachments").upload(storagePath, bytes, {
+    contentType: mimeType,
+    cacheControl: "3600",
+    upsert: false,
+  });
+  if (error) throw new Error("Could not store the private Telegram group attachment.");
+  return { path: storagePath, name: fileName, mimeType, size: bytes.byteLength };
+}
+
+async function handleGroupMessage(admin: ReturnType<typeof getAdmin>, message: JsonRecord) {
+  const chat = message.chat as JsonRecord | undefined;
+  const sender = message.from as JsonRecord | undefined;
+  if ((chat?.type !== "group" && chat?.type !== "supergroup") || typeof chat.id !== "number" || typeof message.message_id !== "number" || typeof sender?.id !== "number" || sender.is_bot === true) return;
+  const chatId = String(chat.id);
+  const { data: binding, error: bindingError } = await admin.from("telegram_group_bindings")
+    .select("telegram_chat_id,workspace_id,conversation_id")
+    .eq("telegram_chat_id", chatId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (bindingError) throw new Error("Could not verify whether this Telegram group is connected.");
+  if (!binding) return;
+  const { data: existingMessage, error: existingError } = await admin.from("chat_messages")
+    .select("id")
+    .eq("telegram_group_chat_id", chatId)
+    .eq("telegram_group_message_id", message.message_id)
+    .maybeSingle();
+  if (existingError) throw new Error("Could not check whether this Telegram group message was already received.");
+  if (existingMessage) return;
+
+  const text = clean(message.text ?? message.caption, 4000);
+  const attachment = await mirrorGroupAttachment(admin, message, chatId);
+  const messageKind = message.sticker ? "sticker" : message.voice ? "voice message" : message.video ? "video" : message.audio ? "audio" : message.animation ? "animation" : message.video_note ? "video note" : "attachment";
+  const body = [text, attachment?.note, !text && !attachment?.path && !attachment?.note ? `[Telegram ${messageKind}]` : ""].filter(Boolean).join("\n").slice(0, 4000);
+  const senderName = [clean(sender.first_name, 80), clean(sender.last_name, 80)].filter(Boolean).join(" ");
+  const senderLabel = clean(sender.username, 64) ? `@${clean(sender.username, 64)}` : senderName || "Telegram staff member";
+  const taskCode = body.match(/\b(BTNR-TASK-\d{8,})\b/i)?.[1] ?? null;
+  const reply = message.reply_to_message as JsonRecord | undefined;
+  const replyToMessageId = typeof reply?.message_id === "number" ? reply.message_id : null;
+
+  const { error } = await admin.rpc("telegram_record_group_message", {
+    telegram_chat_id_input: chatId,
+    telegram_message_id_input: message.message_id,
+    telegram_user_id_input: String(sender.id),
+    sender_label_input: senderLabel,
+    body_input: body || "[Telegram message]",
+    task_code_input: taskCode,
+    reply_to_message_id_input: replyToMessageId,
+    attachment_path_input: attachment?.path ?? null,
+    attachment_name_input: attachment?.name ?? null,
+    attachment_mime_type_input: attachment?.mimeType ?? null,
+    attachment_size_bytes_input: attachment?.size ?? null,
+  });
+  if (error) {
+    const { data: persisted } = await admin.from("chat_messages").select("id")
+      .eq("telegram_group_chat_id", chatId).eq("telegram_group_message_id", message.message_id).maybeSingle();
+    if (!persisted && attachment?.path) await admin.storage.from("betanor-chat-attachments").remove([attachment.path]);
+    throw new Error("Could not mirror a Telegram group message into Betanor.");
+  }
+}
+
 function portalUrl(accountType: string, payload: Record<string, unknown>, ticketId?: string, conversationId?: string) {
   const entityType = clean(payload.entity_type, 64).toLowerCase();
   const entityId = clean(payload.entity_id, 64);
@@ -163,6 +267,10 @@ async function handleWebhookUpdate(admin: ReturnType<typeof getAdmin>, update: J
   if (!envelope) return;
   const chat = envelope.chat as JsonRecord | undefined;
   const from = (message?.from ?? callback?.from) as JsonRecord | undefined;
+  if ((chat?.type === "group" || chat?.type === "supergroup") && message) {
+    await handleGroupMessage(admin, message);
+    return;
+  }
   if (chat?.type !== "private" || typeof from?.id !== "number" || typeof chat.id !== "number") return;
   const chatId = chat.id;
   const telegramUserId = from.id;
@@ -258,6 +366,7 @@ function notificationText(row: NotificationRow, accountType: string) {
   const event = row.event_type.toUpperCase();
   const prefix = ticketNumber ? `${ticketNumber}: ` : "";
   const eventText: Record<string, string> = {
+    TASK_ASSIGNED: "A new task has been assigned to you.",
     SUPPORT_REQUEST_RECEIVED: "Your support request was received.",
     SUPPORT_TICKET_UPDATED: "Your support ticket has an update.",
     SUPPORT_NEW_TICKET: "A new support ticket needs attention.",
@@ -359,6 +468,55 @@ Deno.serve(async (request: Request) => {
       });
       const bot = await telegram("getMe") as { username?: string };
       return json(request, { ok: result === true, botUsername: bot.username ?? null, webhookUrl });
+    }
+
+    if (action === "connect_group") {
+      const { data: allowed, error: permissionError } = await admin.rpc("telegram_user_can_configure", {
+        profile_id_input: identity.user.id,
+      });
+      if (permissionError || allowed !== true) return json(request, { error: "Only an administrator with settings access can connect a Telegram group." }, 403);
+      if (!botToken) return json(request, { error: "Add TELEGRAM_BOT_TOKEN to Supabase Edge Function secrets before connecting a group." }, 503);
+
+      const groupHandle = clean(body.groupHandle, 64);
+      if (!/^@[A-Za-z0-9_]{5,32}$/.test(groupHandle)) return json(request, { error: "Enter the public Telegram group handle, for example @betanoret." }, 400);
+      const group = await telegram("getChat", { chat_id: groupHandle }) as { id?: number; type?: string; title?: string; username?: string };
+      if (typeof group.id !== "number" || (group.type !== "group" && group.type !== "supergroup")) {
+        return json(request, { error: "That Telegram account is not a group or supergroup." }, 400);
+      }
+      const bot = await telegram("getMe") as { id?: number; username?: string };
+      if (typeof bot.id !== "number") return json(request, { error: "Could not identify the Betanor Telegram bot." }, 502);
+      const membership = await telegram("getChatMember", { chat_id: group.id, user_id: bot.id }) as { status?: string };
+      if (membership.status !== "administrator" && membership.status !== "creator") {
+        return json(request, { error: "Promote the Betanor bot to a group administrator, then connect again." }, 400);
+      }
+
+      const username = group.username ? `@${group.username}` : groupHandle;
+      const { error: bindError } = await admin.rpc("telegram_bind_group", {
+        telegram_chat_id_input: String(group.id),
+        telegram_username_input: username,
+        title_input: clean(group.title, 160) || username,
+        actor_profile_id_input: identity.user.id,
+      });
+      if (bindError) return json(request, { error: bindError.message || "Could not connect this Telegram group." }, 400);
+      return json(request, { ok: true, groupHandle: username, title: clean(group.title, 160) || username });
+    }
+
+    if (action === "group_status") {
+      const { data: allowed, error: permissionError } = await admin.rpc("telegram_user_can_configure", {
+        profile_id_input: identity.user.id,
+      });
+      if (permissionError || allowed !== true) return json(request, { error: "Only an administrator with settings access can view Telegram group setup." }, 403);
+      const { data: profile, error: profileError } = await admin.from("profiles")
+        .select("workspace_id").eq("id", identity.user.id).single();
+      if (profileError || !profile?.workspace_id) return json(request, { error: "Could not resolve your workspace." }, 403);
+      const { data: groups, error: groupError } = await admin.from("telegram_group_bindings")
+        .select("telegram_username,title,is_active,updated_at")
+        .eq("workspace_id", profile.workspace_id)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      if (groupError) return json(request, { error: "Could not load Telegram group setup." }, 500);
+      const group = groups?.[0];
+      return json(request, { connected: Boolean(group?.is_active), groupHandle: group?.telegram_username ? `@${group.telegram_username}` : null, title: group?.title ?? null });
     }
 
     return json(request, { error: "Unsupported Telegram action." }, 400);

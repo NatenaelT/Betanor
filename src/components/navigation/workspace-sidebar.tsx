@@ -8,27 +8,28 @@ import { BetanorMark } from "@/components/brand/betanor-mark";
 import { Drawer } from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
 
-type NavigationItem = { href?: string; label: string; description?: string; permission?: string | string[]; superAdminOnly?: boolean };
+type NavigationItem = { href?: string; label: string; description?: string; permission?: string | string[]; superAdminOnly?: boolean; staffOnly?: boolean };
 type NavigationSection = { label?: string; items: NavigationItem[] };
 
 const sections: NavigationSection[] = [
   { items: [{ href: "/workspace", label: "Overview", description: "Workspace pulse" }] },
   { label: "People", items: [{ href: "/workspace/employees", label: "Employees", permission: ["hr.read", "hr.manage", "users.manage"] }, { href: "/workspace/leave", label: "Leave", permission: ["leave.request", "leave.approve"] }, { href: "/workspace/recruitment", label: "Recruitment", permission: "recruitment.manage" }, { href: "/workspace/payslips", label: "Payroll & payslips", permission: ["payroll.read_self", "payroll.manage"] }, { href: "/workspace/kpis", label: "KPIs", permission: ["kpi.read_self", "kpi.read_team", "kpi.configure", "kpi.review"] }] },
-  { label: "Work", items: [{ href: "/workspace/projects", label: "Projects", permission: "project.manage" }, { href: "/workspace/tasks", label: "Tasks", permission: ["task.create", "task.assign", "task.edit"] }, { href: "/workspace/my-work", label: "My work", permission: ["task.edit", "kpi.read_self"] }] },
+  { label: "Work", items: [{ href: "/workspace/projects", label: "Projects", permission: "project.manage" }, { href: "/workspace/tasks", label: "Tasks", permission: ["task.create", "task.assign", "task.edit"] }, { href: "/workspace/my-work", label: "My work", staffOnly: true }] },
   { label: "Support", items: [{ href: "/workspace/support", label: "IT Support / Managed Support", description: "RTSL service desk", permission: ["support.read", "support.create", "support.view_all", "support.manage_contracts"] }] },
   { label: "Finance", items: [{ href: "/workspace/finance", label: "Finance overview", description: "Cash, budgets & receivables", permission: ["finance.read", "finance.create", "finance.approve"] }, { href: "/workspace/expenses", label: "Expenses", description: "Requests & approvals", permission: ["expense.request", "finance.read", "finance.create", "finance.approve"] }, { href: "/workspace/budgets", label: "Budgets", description: "Plan by year and project", permission: ["finance.read", "finance.create", "finance.approve"] }, { href: "/workspace/invoices", label: "Invoices & payments", description: "ETB billing ledger", permission: ["finance.read", "finance.create", "finance.approve"] }] },
   { label: "Documents", items: [{ href: "/workspace/documents", label: "Files & documents", permission: "files.manage" }, { href: "/workspace/letters", label: "Letters", description: "Official correspondence", permission: ["letters.read", "letters.create", "letters.view_department", "letters.view_all"] }] },
-  { label: "Sales & clients", items: [{ href: "/workspace/crm", label: "CRM", permission: ["crm.read", "crm.write"] }, { href: "/workspace/rfqs", label: "RFQs", permission: ["rfq.read", "rfq.write"] }, { href: "/workspace/quotations", label: "Quotations", permission: ["quotation.create", "quotation.edit", "quotation.approve", "quotation.send"] }, { href: "/workspace/contracts", label: "Contracts", permission: ["contract.create", "contract.approve"] }, { href: "/workspace/chats", label: "Chats", permission: "chat.manage" }] },
+  { label: "Sales & clients", items: [{ href: "/workspace/crm", label: "CRM", permission: ["crm.read", "crm.write"] }, { href: "/workspace/rfqs", label: "RFQs", permission: ["rfq.read", "rfq.write"] }, { href: "/workspace/quotations", label: "Quotations", permission: ["quotation.create", "quotation.edit", "quotation.approve", "quotation.send"] }, { href: "/workspace/contracts", label: "Contracts", permission: ["contract.create", "contract.approve"] }, { href: "/workspace/chats", label: "Chats", permission: ["chat.manage", "chat.internal.read"] }] },
   { label: "Tenders", items: [{ href: "/workspace/tenders", label: "Tender management", description: "Proposals, guarantees & submissions", permission: ["tender.read", "tender.create", "tender.view_all"] }] },
   { label: "System", items: [{ href: "/workspace/cms", label: "Content management", permission: ["cms.read", "cms.write", "cms.publish"] }, { href: "/workspace/products", label: "Product catalogue", permission: ["cms.read", "cms.write", "cms.publish"] }, { href: "/workspace/admin/settings", label: "System configuration", permission: "settings.manage" }, { href: "/workspace/style-guide", label: "Brand style", permission: "style.manage", superAdminOnly: true }] },
   { label: "Administration", items: [{ href: "/workspace/admin/users", label: "Users & access", description: "Roles and customer portal links", permission: "users.manage" }, { href: "/workspace/admin/departments", label: "Departments & positions", description: "Conditional organization structure", permission: ["hr.manage", "users.manage"] }] },
   { label: "Help", items: [{ href: "/workspace/help", label: "Help & user manual", description: "Guidance for your assigned role" }, { href: "/workspace/admin/guides", label: "Programmer guide", description: "Download the technical guide", permission: ["users.manage", "settings.manage"] }] },
 ];
 
-function NavigationContents({ close, permissionCodes = [], roleCodes = [] }: { close?: () => void; permissionCodes?: string[]; roleCodes?: string[] }) {
+function NavigationContents({ close, permissionCodes = [], roleCodes = [], hasStaffRole = false }: { close?: () => void; permissionCodes?: string[]; roleCodes?: string[]; hasStaffRole?: boolean }) {
   const pathname = usePathname();
   const isSuperAdmin = roleCodes.includes("SUPER_ADMIN");
   const canSee = (item: NavigationItem) => {
+    if (item.staffOnly) return hasStaffRole;
     if (item.superAdminOnly) return isSuperAdmin;
     if (!item.permission || isSuperAdmin) return true;
     return Array.isArray(item.permission) ? item.permission.some((code) => permissionCodes.includes(code)) : permissionCodes.includes(item.permission);
@@ -49,11 +50,11 @@ function NavigationContents({ close, permissionCodes = [], roleCodes = [] }: { c
   </>;
 }
 
-export function WorkspaceSidebar({ permissionCodes = [], roleCodes = [] }: { permissionCodes?: string[]; roleCodes?: string[] }) {
+export function WorkspaceSidebar({ permissionCodes = [], roleCodes = [], hasStaffRole = false }: { permissionCodes?: string[]; roleCodes?: string[]; hasStaffRole?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   return <>
     <button aria-controls="workspace-mobile-navigation" aria-expanded={isOpen} aria-label="Open workspace navigation" className="fixed top-3 left-4 z-30 grid size-10 place-items-center rounded-lg border border-[var(--betanor-field-border)] bg-[var(--betanor-header-bg)] text-lg text-[var(--betanor-header-text)] shadow-sm lg:hidden print:hidden" onClick={() => setIsOpen(true)}>☰</button>
-    <aside className="hidden h-auto min-h-screen w-72 shrink-0 border-r-2 border-[var(--betanor-nav-edge)] bg-[var(--betanor-nav-bg)] px-5 py-6 text-[var(--betanor-nav-text)] lg:sticky lg:top-0 lg:block print:hidden"><NavigationContents permissionCodes={permissionCodes} roleCodes={roleCodes} /></aside>
-    <Drawer isOpen={isOpen} onClose={() => setIsOpen(false)} title="Workspace navigation"><div className="h-full overflow-y-auto px-5 py-6" id="workspace-mobile-navigation"><button aria-label="Close workspace navigation" className="absolute top-4 right-4 grid size-9 place-items-center rounded-lg text-[var(--betanor-nav-text)] hover:bg-[var(--betanor-nav-hover)]" onClick={() => setIsOpen(false)}>×</button><NavigationContents close={() => setIsOpen(false)} permissionCodes={permissionCodes} roleCodes={roleCodes} /></div></Drawer>
+    <aside className="hidden h-auto min-h-screen w-72 shrink-0 border-r-2 border-[var(--betanor-nav-edge)] bg-[var(--betanor-nav-bg)] px-5 py-6 text-[var(--betanor-nav-text)] lg:sticky lg:top-0 lg:block print:hidden"><NavigationContents permissionCodes={permissionCodes} roleCodes={roleCodes} hasStaffRole={hasStaffRole} /></aside>
+    <Drawer isOpen={isOpen} onClose={() => setIsOpen(false)} title="Workspace navigation"><div className="h-full overflow-y-auto px-5 py-6" id="workspace-mobile-navigation"><button aria-label="Close workspace navigation" className="absolute top-4 right-4 grid size-9 place-items-center rounded-lg text-[var(--betanor-nav-text)] hover:bg-[var(--betanor-nav-hover)]" onClick={() => setIsOpen(false)}>×</button><NavigationContents close={() => setIsOpen(false)} permissionCodes={permissionCodes} roleCodes={roleCodes} hasStaffRole={hasStaffRole} /></div></Drawer>
   </>;
 }
