@@ -27,21 +27,33 @@ export function ChangePasswordForm({ nextPath }: { nextPath: string }) {
       return;
     }
     setBusy(true);
-    const supabase = createClient();
-    const { error: passwordError } = await supabase.auth.updateUser({ password });
-    if (passwordError) {
-      setError(passwordError.message);
+    try {
+      const supabase = createClient();
+      const { data: identity, error: identityError } = await supabase.auth.getUser();
+      if (identityError || !identity.user) {
+        setError("This password link is no longer active. Request a fresh password-reset email and open its newest link.");
+        return;
+      }
+      const { error: passwordError } = await supabase.auth.updateUser({ password });
+      if (passwordError) {
+        setError("We couldn't update your password. Please check the new password and try again.");
+        return;
+      }
+      const { data: profile } = await supabase.from("profiles").select("password_change_required").eq("id", identity.user.id).maybeSingle();
+      if (profile?.password_change_required) {
+        const { error: profileError } = await supabase.from("profiles").update({ password_change_required: false }).eq("id", identity.user.id);
+        if (profileError) {
+          setError("Your password was updated, but the account activation step could not be cleared. Please contact a Betanor administrator.");
+          return;
+        }
+      }
+      router.replace(nextPath);
+      router.refresh();
+    } catch {
+      setError("We couldn't reach the authentication service. Check your connection and try again.");
+    } finally {
       setBusy(false);
-      return;
     }
-    const { error: profileError } = await supabase.from("profiles").update({ password_change_required: false }).eq("id", (await supabase.auth.getUser()).data.user?.id ?? "");
-    if (profileError) {
-      setError("Password changed, but the activation flag could not be cleared. Please sign in again or contact an administrator.");
-      setBusy(false);
-      return;
-    }
-    router.replace(nextPath);
-    router.refresh();
   }
 
   return <form onSubmit={submit} className="mt-8 space-y-5">
@@ -52,6 +64,6 @@ export function ChangePasswordForm({ nextPath }: { nextPath: string }) {
       <Input id="confirm-password" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={8} required value={confirmation} onChange={(event) => setConfirmation(event.target.value)} className="mt-2" />
     </label>
     {error ? <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
-    <Button type="submit" className="w-full" disabled={busy}>{busy ? "Saving…" : "Set password and continue"}</Button>
+    <Button type="submit" className="w-full" disabled={busy}>{busy ? "Saving…" : "Save new password"}</Button>
   </form>;
 }
