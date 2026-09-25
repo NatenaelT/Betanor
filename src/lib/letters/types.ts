@@ -21,7 +21,7 @@ export type LetterRecord = {
   department_id: string | null;
   prepared_by: string;
   approved_by: string | null;
-  recipient_name: string;
+  recipient_name: string | null;
   recipient_title: string | null;
   recipient_organization: string;
   recipient_address: string | null;

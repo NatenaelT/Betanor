@@ -31,7 +31,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const canEdit = access.permissions.has("letters.edit_all") || (access.permissions.has("letters.edit_own") && letter.prepared_by === access.userId);
   if (!canEdit) return error("You do not have permission to edit this letter.", 403);
   const draft = normalizeDraft(await request.json().catch(() => ({})));
-  if (draft.recipient_name.length < 2 || draft.recipient_organization.length < 2 || draft.subject.length < 2 || draft.signatory.length < 2 || draft.body_html.replace(/<[^>]+>/g, "").trim().length < 2) return error("Recipient, organization, subject, body, and signatory are required.", 422);
+  if (draft.recipient_organization.length < 2 || draft.subject.length < 2 || draft.signatory.length < 2 || draft.body_html.replace(/<[^>]+>/g, "").trim().length < 2) return error("Organization, subject, body, and signatory are required.", 422);
   const requestedDate = /^\d{4}-\d{2}-\d{2}$/.test(draft.letter_date || "") ? draft.letter_date as string : letter.letter_date;
   const letterDate = access.permissions.has("letters.edit_all") ? requestedDate : letter.letter_date;
   const { data: updated, error: updateError } = await supabase.from("letters").update({ ...draft, letter_date: letterDate }).eq("id", id).eq("workspace_id", access.workspaceId).neq("status", "SUBMITTED").select(LETTER_COLUMNS).maybeSingle();

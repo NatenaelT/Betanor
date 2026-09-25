@@ -122,3 +122,14 @@ Migration `202609230001_it_support_managed_support.sql` adds `support.read`, `su
 - `user_permissions` stores explicit per-user allow/deny overrides. A matching override wins over the role bundle, so an administrator can switch any catalogue capability on or off without creating a new role. The table is RLS-protected; browser mutations go through the authenticated Edge Function.
 - Customer provisioning creates the customer record and `customer_portal_access` link in the same admin flow. Revoking or deleting an identity disables the link while preserving commercial history.
 - Staff chat and customer chat share the conversation store, but internal messages carry `is_internal = true` and are excluded from customer RLS reads. `start_internal_chat` requires `chat.manage`.
++
++## Email permissions
++
++| Role scope | Read own/participant messages | Send | Read all workspace email | Manage |
++|---|---:|---:|---:|---:|
++| Super Admin | Yes | Yes | Yes | Yes |
++| Admin | Yes | Yes | Yes | Yes |
++| Built-in staff roles | Yes | Yes | No | No |
++| Customer roles | No | No | No | No |
++
++The application uses email.read, email.send, email.read_all, and email.manage. Supabase RLS scopes standard staff reads to the sender or a matched internal participant; only users with email.read_all can read all workspace messages. Customer users receive none of these permissions. Linking a message to a business record additionally relies on that record's existing RLS policy; no module permission bypass is added.

@@ -43,3 +43,13 @@ Payroll managers can edit draft payroll directly at `/workspace/payslips`; each 
 - `/portal/support` — customer support request and ticket status view.
 
 Telegram is configured from the existing `/workspace/admin/settings` page (`settings.manage`) and linked from `/workspace/profile` or `/account/profile`; the Telegram webhook and dispatcher are server-side Supabase Edge Function actions, not public application pages.
++
++## Email correspondence
++
++- /workspace/emails — paginated email register, filtered by status/search and scoped by email RBAC.
++- /workspace/emails/new — compose, save draft, send, and attach verified letter/project/task/tender/quotation/contract/RFQ/customer/support/employee links.
++- /workspace/emails/[id] — view the saved message and linked records; create a follow-up.
++- /workspace/emails/[id]/edit — edit and send the user's own drafts.
++- /api/emails, /api/emails/[id], /api/emails/related-options — authenticated server routes with RBAC and RLS.
++
++Letter details offer an email-to-recipient shortcut, project details offer email-project, and task details offer email-task-team. Customer roles do not see the Emails navigation or API.

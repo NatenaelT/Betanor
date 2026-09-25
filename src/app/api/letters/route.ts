@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   const { supabase, access } = await letterAuth();
   if (!access.workspaceId || !access.userId || !access.permissions.has("letters.create")) return jsonError("You do not have permission to create letters.", 403);
   const body = await request.json().catch(() => ({})); const draft = normalizeDraft(body);
-  if (draft.recipient_name.length < 2 || draft.recipient_organization.length < 2 || draft.subject.length < 2 || draft.signatory.length < 2) return jsonError("Recipient, organization, subject, and signatory are required.", 422);
+  if (draft.recipient_organization.length < 2 || draft.subject.length < 2 || draft.signatory.length < 2) return jsonError("Organization, subject, and signatory are required.", 422);
   if (draft.body_html.replace(/<[^>]+>/g, "").trim().length < 2) return jsonError("A letter body is required.", 422);
   const requestedDate = /^\d{4}-\d{2}-\d{2}$/.test(draft.letter_date || "") ? draft.letter_date as string : companyDate(access.workspace?.timezone);
   const letterDate = access.permissions.has("letters.edit_all") ? requestedDate : companyDate(access.workspace?.timezone);

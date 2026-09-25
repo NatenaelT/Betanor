@@ -59,3 +59,11 @@ Business transaction commits → durable notification row is created → in-app 
 An administrator creates the official bot with BotFather and stores `TELEGRAM_BOT_TOKEN` as a Supabase Edge Function secret → a user with `settings.manage` configures the Telegram webhook from System Configuration → a signed-in user generates a single-use link in My Profile → Telegram `/start` consumes its hashed 10-minute challenge → the bot lists only conversations currently authorized for that Betanor profile → selecting one sets the active thread → plain-text replies are inserted into canonical `chat_messages` and appear in the portal in real time. Users can switch threads with `/tickets`; attachments/screenshots remain in the portal chat. Customer accounts cannot see staff-only conversations; staff-only Telegram chat requires `chat.manage`; internal notes in customer/ticket conversations are never forwarded.
 
 Phase B–H will not be started until Phase A checks and acceptance are complete.
++
++### Letter and email correspondence
++
++Recipient name on an official letter is optional; recipient organization and the remaining required letter content keep their current validation. Authorized staff may open a letter, project or task and start a message with that record pre-linked, or compose from the Emails register and search for other records they can access. Drafts remain editable by their sender; sent message content is immutable. Delivery uses deployment SMTP settings; when SMTP is absent, send is disabled and drafts can still be saved without being reported as delivered.
++
++### Tender checklist
++
++Staff create and edit checklist rows under Technical, Financial, Licences & Registrations, Legal, Administrative, Security & Guarantees, Submission, or Other. A row may be marked mandatory, but newly added rows—including CPO and bank guarantee rows—are optional by default. A supporting file may be uploaded to the private tender checklist bucket, replaced or removed while the tender is editable, or downloaded through a short-lived signed link by authorized tender readers. Submitting the tender locks checklist content and attachments.

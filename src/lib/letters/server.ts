@@ -33,7 +33,7 @@ export function normalizeDraft(input: LetterDraftInput) {
     letter_type: cleanText(input.letter_type) || "General Letter",
     department_id: cleanText(input.department_id) || null,
     approved_by: cleanText(input.approved_by) || null,
-    recipient_name: cleanText(input.recipient_name),
+    recipient_name: cleanText(input.recipient_name) || null,
     recipient_title: cleanText(input.recipient_title) || null,
     recipient_organization: cleanText(input.recipient_organization),
     recipient_address: cleanText(input.recipient_address) || null,
@@ -59,7 +59,6 @@ export function normalizeDraft(input: LetterDraftInput) {
 
 export function validateLetter(letter: Partial<LetterRecord>) {
   const missing: string[] = [];
-  if (!cleanText(letter.recipient_name)) missing.push("recipient name");
   if (!cleanText(letter.recipient_organization)) missing.push("recipient organization");
   if (!cleanText(letter.subject)) missing.push("subject");
   if (!cleanText(letter.body_html).replace(/<[^>]+>/g, "").trim()) missing.push("letter body");
