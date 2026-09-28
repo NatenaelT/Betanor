@@ -44,17 +44,24 @@ export function TenderManagementPanel({
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deletingTenderId, setDeletingTenderId] = useState<string | null>(null);
+  const [deletedTenderIds, setDeletedTenderIds] = useState<Set<string>>(() => new Set());
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
+  const visibleTenders = useMemo(
+    () => tenders.filter((tender) => !deletedTenderIds.has(tender.id)),
+    [deletedTenderIds, tenders],
+  );
+
   const filteredTenders = useMemo(() => {
     const term = query.trim().toLowerCase();
-    return tenders.filter((tender) => {
+    return visibleTenders.filter((tender) => {
       const matchesTerm = !term || [tender.title, tender.reference_number, tender.procuring_organization]
         .some((value) => value?.toLowerCase().includes(term));
       return matchesTerm && (statusFilter === "all" || tender.status === statusFilter);
     });
-  }, [query, statusFilter, tenders]);
+  }, [query, statusFilter, visibleTenders]);
 
   async function create(form: HTMLFormElement) {
     setSaving(true);
@@ -90,25 +97,29 @@ export function TenderManagementPanel({
     });
     if (!approved) return;
     setMessage("");
+    setDeletingTenderId(tender.id);
     try {
       const response = await fetch(`/api/tenders/${tender.id}`, { method: "DELETE" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not delete tender.");
+      setDeletedTenderIds((current) => new Set(current).add(tender.id));
       setMessage("Tender deleted.");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not delete tender.");
+    } finally {
+      setDeletingTenderId(null);
     }
   }
 
-  const statuses = [...new Set(tenders.map((tender) => tender.status))].sort();
+  const statuses = [...new Set(visibleTenders.map((tender) => tender.status))].sort();
 
   return <>
     <section className="mt-8 grid gap-3 sm:grid-cols-3">
       {[
-        ["Open pipeline", tenders.filter((tender) => !["SUBMITTED", "AWARDED", "LOST", "CANCELLED"].includes(tender.status)).length],
-        ["Deadlines set", tenders.filter((tender) => Boolean(tender.submission_deadline)).length],
-        ["Submitted / awarded", tenders.filter((tender) => ["SUBMITTED", "AWARDED"].includes(tender.status)).length],
+        ["Open pipeline", visibleTenders.filter((tender) => !["SUBMITTED", "AWARDED", "LOST", "CANCELLED"].includes(tender.status)).length],
+        ["Deadlines set", visibleTenders.filter((tender) => Boolean(tender.submission_deadline)).length],
+        ["Submitted / awarded", visibleTenders.filter((tender) => ["SUBMITTED", "AWARDED"].includes(tender.status)).length],
       ].map(([label, count]) => <Card key={String(label)} className="p-4 sm:p-5">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--betanor-muted)]">{label}</p>
         <p className="mt-2 text-2xl font-semibold tracking-tight text-[var(--betanor-navy)]">{count}</p>
@@ -133,7 +144,7 @@ export function TenderManagementPanel({
 
     <Card className="mt-6 overflow-hidden">
       <div className="flex flex-col gap-4 border-b border-[var(--betanor-border)] bg-white px-5 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-6">
-        <div><h2 className="font-semibold text-[var(--betanor-navy)]">Tender pipeline</h2><p className="mt-1 text-xs text-[var(--betanor-muted)]">{filteredTenders.length} of {tenders.length} visible tenders · access is scoped to your permissions.</p></div>
+        <div><h2 className="font-semibold text-[var(--betanor-navy)]">Tender pipeline</h2><p className="mt-1 text-xs text-[var(--betanor-muted)]">{filteredTenders.length} of {visibleTenders.length} visible tenders · access is scoped to your permissions.</p></div>
         <div className="grid gap-2 sm:grid-cols-[minmax(12rem,1fr)_12rem]">
           <Input aria-label="Search tenders" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search reference, title, organization" />
           <select aria-label="Filter tenders by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="min-h-10 rounded-lg border border-[var(--betanor-border)] bg-white px-3 text-sm text-[var(--betanor-navy)]"><option value="all">All statuses</option>{statuses.map((status) => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}</select>
@@ -141,8 +152,8 @@ export function TenderManagementPanel({
       </div>
       {filteredTenders.length ? <div className="divide-y divide-[var(--betanor-border)]">{filteredTenders.map((tender) => <article key={tender.id} className="grid gap-4 px-5 py-4 transition hover:bg-blue-50/20 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6">
         <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Badge tone={statusTone(tender.status)}>{tender.status.replaceAll("_", " ")}</Badge><span className="text-xs text-[var(--betanor-muted)]">{tender.reference_number}</span></div><Link href={`/workspace/tenders/${tender.id}`} className="mt-2 block truncate font-semibold text-[var(--betanor-navy)] hover:text-[var(--betanor-blue)]">{tender.title}</Link><p className="mt-1 text-xs text-[var(--betanor-muted)]">{tender.procuring_organization || "Organization not recorded"}</p></div>
-        <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end"><div className="text-left text-xs text-[var(--betanor-muted)] sm:text-right"><p>{tender.submission_deadline ? new Date(tender.submission_deadline).toLocaleString("en-ET") : "Deadline not set"}</p><p className="mt-1">{tender.estimated_value ? `${tender.currency_code || "ETB"} ${Number(tender.estimated_value).toLocaleString()}` : "Value not set"}</p></div><Link href={`/workspace/tenders/${tender.id}`} className="inline-flex min-h-9 items-center rounded-lg border border-[var(--betanor-border)] px-3 text-xs font-semibold text-[var(--betanor-blue)] hover:bg-white">{canEdit && tender.status !== "SUBMITTED" ? "Open & edit" : "Open tender"} →</Link>{canDelete && tender.status !== "SUBMITTED" ? <Button type="button" variant="outline" size="sm" className="border-rose-200 text-rose-700 hover:bg-rose-50" onClick={() => void deleteTender(tender)}>Delete</Button> : null}</div>
-      </article>)}</div> : <p className="px-5 py-12 text-center text-sm text-[var(--betanor-muted)]">{tenders.length ? "No tenders match these filters." : "No tenders are visible yet."}</p>}
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end"><div className="text-left text-xs text-[var(--betanor-muted)] sm:text-right"><p>{tender.submission_deadline ? new Date(tender.submission_deadline).toLocaleString("en-ET") : "Deadline not set"}</p><p className="mt-1">{tender.estimated_value ? `${tender.currency_code || "ETB"} ${Number(tender.estimated_value).toLocaleString()}` : "Value not set"}</p></div><Link href={`/workspace/tenders/${tender.id}`} className="inline-flex min-h-9 items-center rounded-lg border border-[var(--betanor-border)] px-3 text-xs font-semibold text-[var(--betanor-blue)] hover:bg-white">{canEdit && tender.status !== "SUBMITTED" ? "Open & edit" : "Open tender"} →</Link>{canDelete && tender.status !== "SUBMITTED" ? <Button type="button" variant="outline" size="sm" disabled={deletingTenderId === tender.id} className="border-rose-200 text-rose-700 hover:bg-rose-50" onClick={() => void deleteTender(tender)}>{deletingTenderId === tender.id ? "Deleting…" : "Delete"}</Button> : null}</div>
+      </article>)}</div> : <p className="px-5 py-12 text-center text-sm text-[var(--betanor-muted)]">{visibleTenders.length ? "No tenders match these filters." : "No tenders are visible yet."}</p>}
       {message ? <p role="status" className="border-t border-[var(--betanor-border)] px-5 py-3 text-sm text-[var(--betanor-muted)]">{message}</p> : null}
     </Card>
   </>;
