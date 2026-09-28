@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldHint, FieldLabel, Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 
 type AccountType = "staff" | "customer";
 type Role = { id: string; code: string; name: string; description?: string | null; role_type: AccountType };
@@ -44,6 +45,7 @@ function getOverrideCode(item: PermissionOverride) {
 }
 
 export function UserManagementPanel({ roles, permissions, rolePermissions }: Props) {
+  const { confirm } = useAppDialog();
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [accountType, setAccountType] = useState<AccountType>("staff");
   const initialStaffRole = roles.find((role) => role.role_type === "staff")?.code ?? "";
@@ -129,7 +131,8 @@ export function UserManagementPanel({ roles, permissions, rolePermissions }: Pro
   }
 
   async function deleteUser(user: UserRecord) {
-    if (!window.confirm(`Delete ${user.email || user.id}? This disables the profile, revokes portal access, and removes the Auth identity.`)) return;
+    const approved = await confirm({ title: "Delete user account?", description: `Delete ${user.email || user.id}? This disables the profile, revokes portal access, and removes the Auth identity.`, confirmLabel: "Delete account", destructive: true });
+    if (!approved) return;
     setNotice(null);
     const response = await fetch("/api/admin/users", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targetUserId: user.id }) });
     const result = await response.json().catch(() => ({}));

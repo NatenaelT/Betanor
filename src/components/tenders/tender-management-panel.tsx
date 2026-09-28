@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldLabel, Input } from "@/components/ui/input";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 
 type Tender = {
   id: string;
@@ -31,12 +32,15 @@ export function TenderManagementPanel({
   tenders,
   canCreate,
   canEdit,
+  canDelete,
 }: {
   tenders: Tender[];
   canCreate: boolean;
   canEdit: boolean;
+  canDelete: boolean;
 }) {
   const router = useRouter();
+  const { confirm } = useAppDialog();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -75,6 +79,26 @@ export function TenderManagementPanel({
       return;
     }
     router.push(`/workspace/tenders/${data.tender.id}`);
+  }
+
+  async function deleteTender(tender: Tender) {
+    const approved = await confirm({
+      title: "Delete tender?",
+      description: `Delete “${tender.reference_number} · ${tender.title}”? Submitted tenders are protected. Remove any checklist attachments first; related tender records will be removed according to their database relationships.`,
+      confirmLabel: "Delete tender",
+      destructive: true,
+    });
+    if (!approved) return;
+    setMessage("");
+    try {
+      const response = await fetch(`/api/tenders/${tender.id}`, { method: "DELETE" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not delete tender.");
+      setMessage("Tender deleted.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not delete tender.");
+    }
   }
 
   const statuses = [...new Set(tenders.map((tender) => tender.status))].sort();
@@ -117,8 +141,9 @@ export function TenderManagementPanel({
       </div>
       {filteredTenders.length ? <div className="divide-y divide-[var(--betanor-border)]">{filteredTenders.map((tender) => <article key={tender.id} className="grid gap-4 px-5 py-4 transition hover:bg-blue-50/20 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6">
         <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Badge tone={statusTone(tender.status)}>{tender.status.replaceAll("_", " ")}</Badge><span className="text-xs text-[var(--betanor-muted)]">{tender.reference_number}</span></div><Link href={`/workspace/tenders/${tender.id}`} className="mt-2 block truncate font-semibold text-[var(--betanor-navy)] hover:text-[var(--betanor-blue)]">{tender.title}</Link><p className="mt-1 text-xs text-[var(--betanor-muted)]">{tender.procuring_organization || "Organization not recorded"}</p></div>
-        <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end"><div className="text-left text-xs text-[var(--betanor-muted)] sm:text-right"><p>{tender.submission_deadline ? new Date(tender.submission_deadline).toLocaleString("en-ET") : "Deadline not set"}</p><p className="mt-1">{tender.estimated_value ? `${tender.currency_code || "ETB"} ${Number(tender.estimated_value).toLocaleString()}` : "Value not set"}</p></div><Link href={`/workspace/tenders/${tender.id}`} className="inline-flex min-h-9 items-center rounded-lg border border-[var(--betanor-border)] px-3 text-xs font-semibold text-[var(--betanor-blue)] hover:bg-white">{canEdit && tender.status !== "SUBMITTED" ? "Open & edit" : "Open tender"} →</Link></div>
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end"><div className="text-left text-xs text-[var(--betanor-muted)] sm:text-right"><p>{tender.submission_deadline ? new Date(tender.submission_deadline).toLocaleString("en-ET") : "Deadline not set"}</p><p className="mt-1">{tender.estimated_value ? `${tender.currency_code || "ETB"} ${Number(tender.estimated_value).toLocaleString()}` : "Value not set"}</p></div><Link href={`/workspace/tenders/${tender.id}`} className="inline-flex min-h-9 items-center rounded-lg border border-[var(--betanor-border)] px-3 text-xs font-semibold text-[var(--betanor-blue)] hover:bg-white">{canEdit && tender.status !== "SUBMITTED" ? "Open & edit" : "Open tender"} →</Link>{canDelete && tender.status !== "SUBMITTED" ? <Button type="button" variant="outline" size="sm" className="border-rose-200 text-rose-700 hover:bg-rose-50" onClick={() => void deleteTender(tender)}>Delete</Button> : null}</div>
       </article>)}</div> : <p className="px-5 py-12 text-center text-sm text-[var(--betanor-muted)]">{tenders.length ? "No tenders match these filters." : "No tenders are visible yet."}</p>}
+      {message ? <p role="status" className="border-t border-[var(--betanor-border)] px-5 py-3 text-sm text-[var(--betanor-muted)]">{message}</p> : null}
     </Card>
   </>;
 }

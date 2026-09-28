@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import { createClient } from "@/lib/supabase/client";
 
 type Connection = { telegram_username: string | null; linked_at: string } | null;
@@ -24,6 +25,7 @@ export function TelegramProfileSettings({ profileId, initialConnection, initialE
   initialConnection: Connection;
   initialEnabled: boolean;
 }) {
+  const { confirm } = useAppDialog();
   const [connection, setConnection] = useState<Connection>(initialConnection);
   const [enabled, setEnabled] = useState(initialEnabled);
   const [linkUrl, setLinkUrl] = useState("");
@@ -78,7 +80,8 @@ export function TelegramProfileSettings({ profileId, initialConnection, initialE
   }
 
   async function disconnect() {
-    if (!window.confirm("Disconnect Telegram from your Betanor account?")) return;
+    const approved = await confirm({ title: "Disconnect Telegram?", description: "Telegram notifications and account linking will be removed for this profile. You can reconnect later.", confirmLabel: "Disconnect", destructive: true });
+    if (!approved) return;
     setBusy(true); setError(""); setMessage("");
     try {
       const supabase = createClient();

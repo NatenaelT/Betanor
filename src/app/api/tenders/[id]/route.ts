@@ -157,21 +157,25 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Remove the attached files from the tender checklist before deleting this tender." }, { status: 409 });
   }
 
-  const { data, error } = await supabase
+  const { error, count } = await supabase
     .from("tenders")
-    .delete()
+    .delete({ count: "exact" })
     .eq("id", id)
-    .eq("workspace_id", access.workspaceId)
-    .select("id")
-    .maybeSingle();
+    .eq("workspace_id", access.workspaceId);
 
   if (error) {
     const submittedLock = error.message.toLowerCase().includes("immutable");
+    const blockedByRelatedRecord = error.code === "23503";
+    const message = submittedLock
+      ? "Submitted tenders are final and cannot be deleted."
+      : blockedByRelatedRecord
+        ? "This tender still has related records that must be resolved before deletion."
+        : "Tender deletion failed. Please try again or contact an administrator.";
     return NextResponse.json(
-      { error: submittedLock ? "Submitted tenders are final and cannot be deleted." : error.message },
-      { status: submittedLock ? 409 : 400 },
+      { error: message },
+      { status: submittedLock || blockedByRelatedRecord ? 409 : 400 },
     );
   }
-  if (!data) return NextResponse.json({ error: "Tender not found or not available to your role." }, { status: 404 });
+  if (!count) return NextResponse.json({ error: "Tender not found or not available to your role." }, { status: 404 });
   return NextResponse.json({ deleted: true });
 }

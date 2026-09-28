@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldLabel } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 
 type Customer = { id: string; name: string | null; legal_name: string | null; email: string | null; phone: string | null; status: string | null };
 type Profile = { id: string; full_name: string | null; email_address: string | null; account_type: "staff" | "customer" | null; is_active: boolean };
@@ -25,6 +26,7 @@ async function requestJson(path: string, init?: RequestInit) {
 }
 
 export function CustomerPortalAccessPanel() {
+  const { confirm } = useAppDialog();
   const [accessRows, setAccessRows] = useState<PortalAccess[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -108,7 +110,8 @@ export function CustomerPortalAccessPanel() {
 
   async function remove(row: PortalAccess) {
     const customer = relation(row.customer ?? row.customers);
-    if (!window.confirm(`Remove portal access for ${customer?.name || customer?.legal_name || "this customer"}? The customer and business history will remain.`)) return;
+    const approved = await confirm({ title: "Remove customer portal access?", description: `Remove portal access for ${customer?.name || customer?.legal_name || "this customer"}? The customer account and business history will remain.`, confirmLabel: "Remove access", destructive: true });
+    if (!approved) return;
     setSaving(true);
     setNotice(null);
     try {

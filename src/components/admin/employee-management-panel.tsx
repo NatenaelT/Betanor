@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldLabel, Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 
 type Option = { id: string; label: string };
 export type EmployeeAdminRecord = {
@@ -34,6 +35,7 @@ type Props = { departments: Option[]; positions: Option[]; profiles: Option[]; m
 const emptyForm = { firstName: "", lastName: "", profileId: "", workEmail: "", workPhone: "", hireDate: "", probationEndDate: "", departmentId: "", positionId: "", managerId: "", employmentType: "full_time", salary: "", contractTitle: "Employment contract", employmentStatus: "active", createSystemAccess: false, loginEmail: "", provisioningMethod: "invite", temporaryPassword: "", roleCode: "EMPLOYEE" };
 
 export function EmployeeManagementPanel({ departments, positions, profiles, managers, roles, employees, canManage }: Props) {
+  const { confirm } = useAppDialog();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -78,7 +80,8 @@ export function EmployeeManagementPanel({ departments, positions, profiles, mana
   }
 
   async function remove(employee: EmployeeAdminRecord) {
-    if (!window.confirm(`Delete ${employee.first_name} ${employee.last_name}? Records with payroll, leave, or task history are archived safely.`)) return;
+    const approved = await confirm({ title: "Delete employee record?", description: `Delete ${employee.first_name} ${employee.last_name}? Records with payroll, leave, or task history are archived safely.`, confirmLabel: "Delete employee", destructive: true });
+    if (!approved) return;
     setSaving(true); setError(null);
     try {
       const response = await fetch("/api/admin/employees", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: employee.id }) });

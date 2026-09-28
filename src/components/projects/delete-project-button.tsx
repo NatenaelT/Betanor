@@ -1,19 +1,18 @@
 "use client";
 
-import type { FormEvent } from "react";
-
 import { deleteProject } from "@/app/workspace/projects/actions";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 
 export function DeleteProjectButton({ projectId }: { projectId: string }) {
-  function confirmDelete(event: FormEvent<HTMLFormElement>) {
-    if (!window.confirm("Delete this project? Linked task history will be preserved without its project link, but milestones and project membership records will be removed.")) {
-      event.preventDefault();
-    }
+  const { confirm } = useAppDialog();
+  async function confirmDelete() {
+    const approved = await confirm({ title: "Delete project?", description: "Linked task history will be preserved without its project link, but milestones and project membership records will be removed.", confirmLabel: "Delete project", destructive: true });
+    if (!approved) return;
+    const formData = new FormData();
+    formData.set("projectId", projectId);
+    await deleteProject(formData);
   }
 
-  return <form action={deleteProject} onSubmit={confirmDelete}>
-    <input type="hidden" name="projectId" value={projectId}/>
-    <Button type="submit" variant="outline" className="border-rose-200 text-rose-700 hover:bg-rose-50">Delete project</Button>
-  </form>;
+  return <Button type="button" variant="outline" className="border-rose-200 text-rose-700 hover:bg-rose-50" onClick={() => void confirmDelete()}>Delete project</Button>;
 }

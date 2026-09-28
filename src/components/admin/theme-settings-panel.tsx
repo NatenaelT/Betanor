@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldLabel, Input } from "@/components/ui/input";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import { DEFAULT_STYLE_SETTINGS, STYLE_COLOR_FIELDS, STYLE_FONT_FAMILIES, type StyleSettings } from "@/lib/style-settings";
 
 type Theme = StyleSettings & { id: string; workspace_id: string; name: string; template_key: string; is_active: boolean; created_at: string; updated_at: string };
@@ -27,6 +28,7 @@ async function requestJson(path: string, init?: RequestInit) {
 }
 
 export function ThemeSettingsPanel() {
+  const { confirm } = useAppDialog();
   const router = useRouter();
   const [themes, setThemes] = useState<Theme[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -81,7 +83,8 @@ export function ThemeSettingsPanel() {
 
   async function deleteTheme() {
     if (!selected || selected.is_active) return;
-    if (!window.confirm(`Delete ${selected.name}? This cannot be undone.`)) return;
+    const approved = await confirm({ title: "Delete theme?", description: `Delete ${selected.name}? This cannot be undone.`, confirmLabel: "Delete theme", destructive: true });
+    if (!approved) return;
     setBusy(true); setError(null); setMessage(null);
     try { await requestJson("/api/admin/themes", { method: "DELETE", body: JSON.stringify({ id: selected.id }) }); const remaining = themes.filter((theme) => theme.id !== selected.id); setThemes(remaining); setSelectedId(remaining[0]?.id || ""); setMessage("Theme deleted."); }
     catch (reason: unknown) { setError(reason instanceof Error ? reason.message : "Could not delete the theme."); }

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldLabel, Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 
 type Department = { id: string; name: string; code: string; status: string; parent_id: string | null };
 type Position = { id: string; title: string; code: string | null; status: string; department_id: string };
@@ -19,6 +20,7 @@ async function requestJson(path: string, init?: RequestInit) {
 }
 
 export function DepartmentPositionManager() {
+  const { confirm } = useAppDialog();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
@@ -69,7 +71,8 @@ export function DepartmentPositionManager() {
   }
 
   async function remove(entity: "department" | "position", id: string) {
-    if (!window.confirm(`Delete this ${entity}? Records with history must be set inactive instead.`)) return;
+    const approved = await confirm({ title: `Delete ${entity}?`, description: "Records with history must be set inactive instead.", confirmLabel: `Delete ${entity}`, destructive: true });
+    if (!approved) return;
     setBusy(true); setError(null); setMessage(null);
     try { await requestJson("/api/admin/organization", { method: "DELETE", body: JSON.stringify({ entity, id }) }); await refresh(); setMessage(`${entity[0].toUpperCase()}${entity.slice(1)} deleted.`); }
     catch (reason: unknown) { setError(reason instanceof Error ? reason.message : "Could not delete the record."); }

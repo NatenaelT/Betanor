@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldLabel, Input } from "@/components/ui/input";
+import { useAppDialog } from "@/components/ui/app-dialog-provider";
 
 const checklistCategories = [
   "Technical",
@@ -56,6 +57,7 @@ export function TenderDetailPanel({
   openEditInitially: boolean;
 }) {
   const router = useRouter();
+  const { confirm } = useAppDialog();
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(openEditInitially);
@@ -80,18 +82,24 @@ export function TenderDetailPanel({
   async function request(path: string, method: "POST" | "PATCH" | "DELETE", body?: unknown) {
     setBusy(true);
     setMessage("");
-    const response = await fetch(path, {
-      method,
-      headers: body instanceof FormData ? undefined : { "Content-Type": "application/json" },
-      body: body instanceof FormData ? body : body === undefined ? undefined : JSON.stringify(body),
-    });
-    const data = await response.json().catch(() => ({}));
-    setBusy(false);
-    if (!response.ok) {
-      setMessage(data.error || "Could not save the change.");
+    try {
+      const response = await fetch(path, {
+        method,
+        headers: body instanceof FormData ? undefined : { "Content-Type": "application/json" },
+        body: body instanceof FormData ? body : body === undefined ? undefined : JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setMessage(data.error || "Could not save the change.");
+        return null;
+      }
+      return data;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not connect. Please try again.");
       return null;
+    } finally {
+      setBusy(false);
     }
-    return data;
   }
 
   async function post(path: string, body: unknown) {
@@ -125,7 +133,8 @@ export function TenderDetailPanel({
   }
 
   async function deleteTender() {
-    if (!window.confirm(`Delete “${tender.reference_number} · ${tender.title}”? This removes its checklist, guarantees, and tender activity. Remove checklist files first. Submitted tenders cannot be deleted.`)) return;
+    const approved = await confirm({ title: "Delete tender?", description: `Delete “${tender.reference_number} · ${tender.title}”? Submitted tenders are final. Remove checklist attachments first; related tender records will be removed according to their database relationships.`, confirmLabel: "Delete tender", destructive: true });
+    if (!approved) return;
     const result = await request(`/api/tenders/${tender.id}`, "DELETE");
     if (result) router.push("/workspace/tenders?deleted=1");
   }
@@ -135,7 +144,8 @@ export function TenderDetailPanel({
       setMessage("Complete every mandatory checklist item first.");
       return;
     }
-    if (!window.confirm("Mark this tender as submitted? The final submission snapshot will be preserved.")) return;
+    const approved = await confirm({ title: "Finalize tender submission?", description: "Mark this tender as submitted? The final submission snapshot will be preserved.", confirmLabel: "Finalize submission" });
+    if (!approved) return;
     await post(`/api/tenders/${tender.id}/submission`, {});
   }
 
@@ -174,7 +184,8 @@ export function TenderDetailPanel({
   }
 
   async function deleteItem(item: Requirement) {
-    if (!window.confirm(`Delete checklist item “${item.title}”? This cannot be undone.`)) return;
+    const approved = await confirm({ title: "Delete checklist item?", description: `Delete “${item.title}”? This cannot be undone.`, confirmLabel: "Delete item", destructive: true });
+    if (!approved) return;
     const result = await request(`/api/tenders/${tender.id}/requirements?requirementId=${item.id}`, "DELETE");
     if (result) setChecks((current) => current.filter((row) => row.id !== item.id));
   }
