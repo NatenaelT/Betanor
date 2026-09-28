@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -30,25 +31,34 @@ type Requirement = {
   attachment_size_bytes?: number | null;
 };
 type Guarantee = { id: string; guarantee_type: string; reference_number: string; financial_institution?: string | null; amount: number; expiry_date?: string | null; status: string };
-type TenderDetail = { id: string; title: string; reference_number: string; procuring_organization?: string | null; status: string; submission_deadline?: string | null; estimated_value?: number | null; currency_code?: string | null };
+type TenderDetail = { id: string; title: string; reference_number: string; procuring_organization?: string | null; description?: string | null; tender_type?: string | null; status: string; submission_deadline?: string | null; estimated_value?: number | null; currency_code?: string | null; issue_date?: string | null; department_id?: string | null };
+type TenderDepartment = { id: string; name: string };
 
 export function TenderDetailPanel({
   tender,
   requirements,
   guarantees,
+  departments,
   canEdit,
+  canDelete,
   canGuarantee,
   canSubmit,
+  openEditInitially,
 }: {
   tender: TenderDetail;
   requirements: Requirement[];
   guarantees: Guarantee[];
+  departments: TenderDepartment[];
   canEdit: boolean;
+  canDelete: boolean;
   canGuarantee: boolean;
   canSubmit: boolean;
+  openEditInitially: boolean;
 }) {
+  const router = useRouter();
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editOpen, setEditOpen] = useState(openEditInitially);
   const [checks, setChecks] = useState(requirements);
   const groups = useMemo(() => {
     const grouped = new Map<string, Requirement[]>();
@@ -59,6 +69,13 @@ export function TenderDetailPanel({
     return [...grouped.entries()];
   }, [checks]);
   const locked = tender.status === "SUBMITTED";
+
+  function localDateTime(value?: string | null) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return "";
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+  }
 
   async function request(path: string, method: "POST" | "PATCH" | "DELETE", body?: unknown) {
     setBusy(true);
@@ -83,6 +100,34 @@ export function TenderDetailPanel({
       setMessage("Saved.");
       window.location.reload();
     }
+  }
+
+  async function saveTender(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const result = await request(`/api/tenders/${tender.id}`, "PATCH", {
+      reference_number: form.get("referenceNumber"),
+      title: form.get("title"),
+      procuring_organization: form.get("procuringOrganization"),
+      tender_type: form.get("tenderType"),
+      description: form.get("description"),
+      status: form.get("status"),
+      estimated_value: form.get("estimatedValue"),
+      currency_code: form.get("currencyCode"),
+      issue_date: form.get("issueDate"),
+      submission_deadline: form.get("submissionDeadline"),
+      department_id: form.get("departmentId"),
+    });
+    if (result) {
+      setMessage("Tender details saved.");
+      window.location.reload();
+    }
+  }
+
+  async function deleteTender() {
+    if (!window.confirm(`Delete “${tender.reference_number} · ${tender.title}”? This removes its checklist, guarantees, and tender activity. Remove checklist files first. Submitted tenders cannot be deleted.`)) return;
+    const result = await request(`/api/tenders/${tender.id}`, "DELETE");
+    if (result) router.push("/workspace/tenders?deleted=1");
   }
 
   async function submit() {
@@ -148,12 +193,26 @@ export function TenderDetailPanel({
             <h2 className="mt-2 text-xl font-semibold text-[var(--betanor-navy)]">{tender.title}</h2>
             <p className="mt-1 text-sm text-[var(--betanor-muted)]">{tender.reference_number} · {tender.procuring_organization || "Organization not recorded"}</p>
           </div>
-          <Badge tone={tender.status === "SUBMITTED" ? "success" : "info"}>{String(tender.status).replaceAll("_", " ")}</Badge>
+          <div className="flex flex-wrap items-start gap-2"><Badge tone={tender.status === "SUBMITTED" ? "success" : "info"}>{String(tender.status).replaceAll("_", " ")}</Badge>{canEdit && !locked ? <Button type="button" variant="outline" size="sm" onClick={() => setEditOpen((value) => !value)}>{editOpen ? "Close editor" : "Edit tender"}</Button> : null}{canDelete && !locked ? <Button type="button" variant="danger" size="sm" onClick={() => void deleteTender()} disabled={busy}>Delete</Button> : null}</div>
         </div>
         <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2">
           <div><dt className="text-xs text-[var(--betanor-muted)]">Submission deadline</dt><dd className="mt-1 font-semibold text-[var(--betanor-navy)]">{tender.submission_deadline ? new Date(tender.submission_deadline).toLocaleString("en-ET") : "Not set"}</dd></div>
           <div><dt className="text-xs text-[var(--betanor-muted)]">Estimated value</dt><dd className="mt-1 font-semibold text-[var(--betanor-navy)]">{tender.estimated_value ? `${tender.currency_code} ${Number(tender.estimated_value).toLocaleString()}` : "Not set"}</dd></div>
         </dl>
+        {editOpen && canEdit && !locked ? <form className="mt-6 grid gap-4 border-t border-[var(--betanor-border)] pt-5 sm:grid-cols-2" onSubmit={(event) => void saveTender(event)}>
+          <div><FieldLabel required htmlFor="tender-edit-reference">Reference number</FieldLabel><Input id="tender-edit-reference" name="referenceNumber" required maxLength={120} defaultValue={tender.reference_number} /></div>
+          <div><FieldLabel required htmlFor="tender-edit-title">Tender title</FieldLabel><Input id="tender-edit-title" name="title" required maxLength={300} defaultValue={tender.title} /></div>
+          <div><FieldLabel htmlFor="tender-edit-organization">Procuring organization</FieldLabel><Input id="tender-edit-organization" name="procuringOrganization" defaultValue={tender.procuring_organization ?? ""} /></div>
+          <div><FieldLabel htmlFor="tender-edit-type">Tender type</FieldLabel><Input id="tender-edit-type" name="tenderType" defaultValue={tender.tender_type ?? ""} /></div>
+          <div><FieldLabel htmlFor="tender-edit-status">Status</FieldLabel><select id="tender-edit-status" name="status" defaultValue={tender.status} className="min-h-10 w-full rounded-lg border border-[var(--betanor-border)] bg-white px-3 text-sm">{[["DRAFT", "Draft"], ["GO_NO_GO", "Go / no-go"], ["IN_PROGRESS", "In progress"], ["READY_FOR_SUBMISSION", "Ready for submission"], ["UNDER_EVALUATION", "Under evaluation"], ["AWARDED", "Awarded"], ["LOST", "Lost"], ["CANCELLED", "Cancelled"]].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+          <div><FieldLabel htmlFor="tender-edit-department">Department</FieldLabel><select id="tender-edit-department" name="departmentId" defaultValue={tender.department_id ?? ""} className="min-h-10 w-full rounded-lg border border-[var(--betanor-border)] bg-white px-3 text-sm"><option value="">No department</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></div>
+          <div><FieldLabel htmlFor="tender-edit-estimated-value">Estimated value</FieldLabel><Input id="tender-edit-estimated-value" name="estimatedValue" type="number" min="0" step="0.01" defaultValue={tender.estimated_value ?? ""} /></div>
+          <div><FieldLabel htmlFor="tender-edit-currency">Currency</FieldLabel><Input id="tender-edit-currency" name="currencyCode" maxLength={3} defaultValue={tender.currency_code ?? "ETB"} /></div>
+          <div><FieldLabel htmlFor="tender-edit-issue-date">Issue date</FieldLabel><Input id="tender-edit-issue-date" name="issueDate" type="date" defaultValue={tender.issue_date ?? ""} /></div>
+          <div><FieldLabel htmlFor="tender-edit-deadline">Submission deadline</FieldLabel><Input id="tender-edit-deadline" name="submissionDeadline" type="datetime-local" defaultValue={localDateTime(tender.submission_deadline)} /></div>
+          <div className="sm:col-span-2"><FieldLabel htmlFor="tender-edit-description">Description</FieldLabel><textarea id="tender-edit-description" name="description" rows={4} maxLength={10000} defaultValue={tender.description ?? ""} className="w-full rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-sm" /></div>
+          <div className="flex items-center gap-3 sm:col-span-2"><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save tender details"}</Button><span className="text-xs text-[var(--betanor-muted)]">Submitted records are read-only and must be finalized through the submission workflow.</span></div>
+        </form> : null}
         {canEdit ? <div className="mt-6 flex flex-wrap gap-2"><Button variant="outline" onClick={() => void post(`/api/tenders/${tender.id}/submission-letter`, {})} disabled={busy}>Prepare submission letter</Button>{!locked ? <Button onClick={() => void submit()} disabled={busy || !canSubmit}>Finalize submission</Button> : null}</div> : null}
         {message ? <p className="mt-3 text-sm text-[var(--betanor-muted)]" role="status">{message}</p> : null}
       </Card>
