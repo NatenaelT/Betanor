@@ -5,9 +5,10 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChatComposer } from "@/components/chat/chat-composer";
+import { ChatMessage, type ChatMessageRecord } from "@/components/chat/chat-message";
 import { createClient } from "@/lib/supabase/client";
 
-type Message = { id: string; body: string; sender_kind: string; created_at: string; read_at?: string | null; attachment_name?: string | null };
+type Message = ChatMessageRecord;
 type Conversation = { id: string; reference: string; status: string; chat_messages?: Message[] };
 type GuestRecord = { reference: string; status: string; message_id: string; sender_kind: string; body: string; created_at: string };
 
@@ -26,6 +27,12 @@ export function CustomerChatWidget({ customerId: providedCustomerId }: { custome
   const [error, setError] = useState<string | null>(null);
   const [online, setOnline] = useState(false);
   const [typing, setTyping] = useState(false);
+  const [viewerId, setViewerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    void supabase.auth.getUser().then(({ data }) => setViewerId(data.user?.id ?? null));
+  }, []);
 
   const resolvedCustomerId = providedCustomerId ?? customerId;
   const isGuest = !resolvedCustomerId;
@@ -69,7 +76,7 @@ export function CustomerChatWidget({ customerId: providedCustomerId }: { custome
     if (resolvedCustomerId) {
       const { data } = await supabase
         .from("chat_conversations")
-        .select("id,reference,status,chat_messages(id,body,sender_kind,read_at,attachment_name,created_at)")
+        .select("id,reference,status,chat_messages(id,body,sender_kind,sender_profile_id,is_internal,read_at,edited_at,deleted_at,attachment_name,created_at)")
         .eq("customer_id", resolvedCustomerId)
         .order("updated_at", { ascending: false })
         .limit(1)
@@ -171,7 +178,7 @@ export function CustomerChatWidget({ customerId: providedCustomerId }: { custome
     <button type="button" aria-expanded={open} aria-label={open ? "Close live chat" : "Open live chat"} onClick={() => setOpen((value) => !value)} className="grid size-14 place-items-center rounded-full bg-[var(--betanor-button-bg)] text-2xl text-[var(--betanor-button-text)] shadow-xl ring-4 ring-white transition-transform hover:scale-105">{open ? "×" : "💬"}</button>
     {open ? <div className="absolute right-0 bottom-18 flex w-[min(92vw,24rem)] flex-col overflow-hidden rounded-2xl border border-[var(--betanor-border)] bg-white shadow-2xl">
       <div className="bg-[var(--betanor-navy)] px-4 py-3 text-white"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold">Betanor live support</p><p className="mt-1 text-xs text-blue-100">{statusLabel}</p></div><span className={`size-2 rounded-full ${online || !resolvedCustomerId ? "bg-emerald-400" : "bg-slate-400"}`} aria-label={online ? "Chat online" : "Chat offline"} /></div></div>
-      <div className="max-h-72 space-y-2 overflow-y-auto p-4">{conversation?.chat_messages?.length ? conversation.chat_messages.map((message) => <div key={message.id} className={`max-w-[88%] rounded-xl px-3 py-2 text-sm ${message.sender_kind === "customer" || message.sender_kind === "guest" ? "ml-auto bg-blue-50 text-[var(--betanor-navy)]" : "bg-slate-100 text-[var(--betanor-text)]"}`}><div>{message.body}</div>{message.attachment_name ? <a className="mt-2 block text-xs font-semibold text-[var(--betanor-blue)] hover:underline" href={`/api/chat/attachments/${message.id}`} target="_blank" rel="noreferrer">📎 {message.attachment_name}</a> : null}{message.sender_kind === "customer" ? <span className="mt-1 block text-[10px] text-slate-500">{message.read_at ? "Seen" : "Sent"}</span> : null}</div>) : <p className="text-sm leading-6 text-[var(--betanor-muted)]">Send a message and the Betanor team will pick it up from the staff inbox.</p>}</div>
+      <div className="max-h-72 space-y-2 overflow-y-auto p-4">{conversation?.chat_messages?.length ? conversation.chat_messages.map((message) => <ChatMessage key={message.id} message={message} viewerId={viewerId} compact onChanged={() => void load()} />) : <p className="text-sm leading-6 text-[var(--betanor-muted)]">Send a message and the Betanor team will pick it up from the staff inbox.</p>}</div>
       {conversation?.status === "closed" || conversation?.status === "resolved" ? <div className="border-t border-[var(--betanor-border)] bg-slate-50 px-4 py-3 text-xs text-[var(--betanor-muted)]">This conversation has been closed. Start a new chat by refreshing the page.</div> : resolvedCustomerId && conversation ? <div className="border-t border-[var(--betanor-border)] p-3"><ChatComposer conversationId={conversation.id} senderKind="customer" placeholder="Write to Betanor…" onSent={() => void load()} /></div> : <form onSubmit={send} className="space-y-2 border-t border-[var(--betanor-border)] p-3">{needsGuestIdentity ? <div className="grid gap-2 sm:grid-cols-2"><Input aria-label="Your name" required minLength={2} value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Your name" /><Input aria-label="Your email" type="email" value={guestEmail} onChange={(event) => setGuestEmail(event.target.value)} placeholder="Email (optional)" /></div> : null}<div className="flex items-center gap-2"><Input aria-label="Chat topic" value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="Topic" /><button type="button" className="rounded-lg border border-[var(--betanor-border)] px-2 py-2 text-lg" aria-label="Add emoji" onClick={() => setBody((value) => `${value} 😊`)}>😊</button></div><textarea aria-label="Chat message" required minLength={2} value={body} onChange={(event) => setBody(event.target.value)} rows={3} className="w-full rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-sm" placeholder="How can we help?" />{error ? <p className="text-xs text-[var(--betanor-danger)]">{error}</p> : null}<Button type="submit" size="sm" disabled={loading}>{loading ? "Sending…" : conversation ? "Send message" : "Start chat"}</Button></form>}
     </div> : null}
   </div>;
