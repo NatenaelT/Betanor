@@ -1,5 +1,9 @@
 # Proposed Workflows
 
+## Noren personal notifications — first release
+
+An authorized action, such as task assignment, support assignment, internal message or letter publication, creates its existing durable notification for the intended profile. The Noren bell and inbox load only `recipient_id = current user` rows in recent-first pages. A recipient-scoped Realtime subscription refreshes the unread count and visible page. Opening an item or choosing Mark read changes only that user's `read_at`; database RLS blocks another user's row. Staff destinations are selected by entity type and current module permission. Customer notices are limited to support tickets still authorized under the active organization link. Telegram delivery remains preference-controlled and asynchronous. This first release does not claim that every event in the full Noren specification has a producer; channels, calls, and event-by-event preferences remain controlled later phases.
+
 Each workflow requires explicit state transitions, approval rules, notifications, and immutable audit events. Exact states and thresholds await approval.
 
 1. **Public RFQ to accepted quotation:** visitor submits validated RFQ (with attachments) → intake generates `BTNR-RFQ-YYYY-XXXXX`, acknowledges sender, and creates/matches customer/contact → sales triages and qualifies the lead → quotation draft/version is prepared → internal review/approval → customer receives a hashed, expiring `/q/[secure-token]` link → client view/accept/reject/revision request is recorded → acceptance locks the accepted version, marks the commercial opportunity won, and triggers contract preparation.

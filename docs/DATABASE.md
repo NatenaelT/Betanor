@@ -1,5 +1,11 @@
 # Database Architecture
 
+## Noren notification integration (October 2026)
+
+Noren reuses `notifications` as its canonical personal inbox, not a second notification table. `notifications.recipient_id → profiles.id` identifies one recipient; `entity_type` and `entity_id` refer to a task, support ticket, letter, tender, project or conversation. Task-assignment notifications originate from the existing `task_assignees` trigger, which resolves `employees.profile_id`. Existing support/chat, letter and tender producers remain canonical. Linked, opted-in Telegram users receive an asynchronous outbox delivery; Noren does not duplicate it.
+
+Migration `20261005094120_noren_notification_realtime.sql` adds recipient/recent and unread indexes and publishes `notifications` to Supabase Realtime. Recipient RLS is unchanged. `20261005095108_noren_customer_notification_scope.sql` adds a security-invoker page function that joins the recipient's support notifications to currently accessible tickets and active `customer_portal_access`; revoked organization access removes old notices from the customer portal without deleting audit history. Future Noren phases should normalize memberships, threads, calls and delivery preferences only after preserving the existing `chat_conversations`, `chat_messages`, customer access and Telegram bindings.
+
 ## Status and conventions
 
 Implemented in Supabase on 15 September 2026 through the tracked migrations in `supabase/migrations/`:

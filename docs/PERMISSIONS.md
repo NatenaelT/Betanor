@@ -1,5 +1,17 @@
 # Permissions and RLS Strategy
 
+## Noren notification access
+
+| Capability | Active staff | Support staff | Management | Customer |
+|---|---:|---:|---:|---:|
+| View own notification inbox and unread count | Yes | Yes | Yes | No staff inbox |
+| Mark own item read/unread | Yes | Yes | Yes | No staff inbox |
+| Open linked task | Assignment or task RLS | Assignment or task RLS | Existing task RBAC/RLS | No |
+| Open linked support/chat/letter/tender/project | Existing module permission and RLS | Existing scoped permissions | Existing module permission and RLS | No staff route |
+| Insert a notification for someone else | No | No | No | No |
+
+`authenticated` has no direct INSERT grant on `notifications`. Its SELECT and read-state UPDATE policies require `recipient_id = auth.uid()`. The staff Noren API checks active staff identity, filters every query by that profile and only maps links to modules in the current permission set. Customer notifications are limited to support tickets visible through their current active organization link and ticket RLS; the customer page function is `SECURITY INVOKER`, not a service-role bypass. Realtime subscriptions filter by recipient ID and cannot bypass RLS.
+
 ## Initial roles
 
 `SUPER_ADMIN`, `MANAGEMENT`, `ADMIN`, `HR_MANAGER`, `HR_STAFF`, `FINANCE_MANAGER`, `FINANCE_STAFF`, `SALES_MANAGER`, `SALES_STAFF`, `PROJECT_MANAGER`, `TEAM_LEAD`, `TECHNICAL_STAFF`, `SUPPORT_STAFF`, `CONTENT_EDITOR`, `EMPLOYEE`, and `VIEWER` are the master-specified initial role bundles. They remain extensible and map to granular permissions such as `cms.publish`, `quotation.approve`, `task.assign`, `kpi.review`, `payroll.manage`, and `audit.read`.

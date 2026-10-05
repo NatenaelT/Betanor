@@ -1,0 +1,5 @@
+# Noren performance plan
+
+The first integrated release reads `notifications` by recipient in recent-first order with a maximum 30-row server page. Customer pages use a security-invoker query that joins only currently accessible support tickets. Recipient/recent and unread indexes support the bell and inbox. The bell fetches a six-item preview after mount so it does not block the portal or workspace shell. Bell and inbox subscribe only to the signed-in recipient's changes and remove subscriptions on unmount. Browsers do not receive a workspace-wide notification stream.
+
+The existing chat and support modules remain canonical. A future conversation refactor should replace workspace-wide chat refreshes with authorized conversation-scoped subscriptions, paginate history, lazy-load files and call SDKs, and render current conversation data before older history. Keep customer and staff queries separate. External Telegram/email delivery should continue through the durable outbox, so transport latency never blocks business actions.

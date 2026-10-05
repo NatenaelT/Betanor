@@ -28,7 +28,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     <div className="flex min-h-screen bg-[var(--betanor-surface)]">
       <WorkspaceSidebar permissionCodes={[...access.permissions]} roleCodes={[...access.roleCodes]} hasStaffRole={access.hasStaffRole} />
       <div className="min-w-0 flex-1">
-        <WorkspaceTopbar email={email} displayName={profile?.full_name} avatarUrl={avatarUrl} />
+        <WorkspaceTopbar email={email} displayName={profile?.full_name} avatarUrl={avatarUrl} userId={access.userId ?? jwt.claims.sub} />
         {children}
       </div>
     </div>

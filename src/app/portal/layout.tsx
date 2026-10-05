@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { BetanorMark } from "@/components/brand/betanor-mark";
 import { CustomerPortalNav } from "@/components/portal/customer-portal-nav";
 import { CustomerPortalRealtime } from "@/components/portal/customer-portal-realtime";
+import { NotificationBell } from "@/components/noren/notification-bell";
 import { SiteFooter } from "@/components/navigation/site-footer";
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,5 +23,5 @@ export default async function PortalLayout({ children }: { children: ReactNode }
   const isStaffPreview = !access?.customer_id && isStaff;
   if (!access?.customer_id && !isStaffPreview) redirect("/customer/onboard");
   const customer = Array.isArray(access?.customers) ? access.customers[0] : access?.customers;
-  return <div className="min-h-screen bg-[var(--betanor-surface)]"><header className="relative sticky top-0 z-20 border-b border-[var(--betanor-border)] bg-[var(--betanor-header-bg)]/95 text-[var(--betanor-header-text)] backdrop-blur print:hidden"><div className="mx-auto flex min-h-16 max-w-7xl items-center gap-4 px-5 py-2 lg:px-8"><Link href="/portal" aria-label="Betanor customer portal"><BetanorMark /></Link><div className="hidden min-w-0 sm:block"><p className="truncate text-sm font-semibold text-[var(--betanor-header-text)]">{customer?.name || customer?.legal_name || (isStaffPreview ? "Staff customer preview" : "Customer portal")}</p><p className="text-xs text-[var(--betanor-muted)]">{isStaffPreview ? "Preview mode · no customer records" : "Secure customer workspace"}</p></div><CustomerPortalNav isStaff={isStaff} /></div></header><CustomerPortalRealtime customerId={access?.customer_id} />{children}<SiteFooter showRfq={Boolean(access?.customer_id)} /></div>;
+  return <div className="min-h-screen bg-[var(--betanor-surface)]"><header className="relative sticky top-0 z-20 border-b border-[var(--betanor-border)] bg-[var(--betanor-header-bg)]/95 text-[var(--betanor-header-text)] backdrop-blur print:hidden"><div className="mx-auto flex min-h-16 max-w-7xl items-center gap-4 px-5 py-2 lg:px-8"><Link href="/portal" aria-label="Betanor customer portal"><BetanorMark /></Link><div className="hidden min-w-0 sm:block"><p className="truncate text-sm font-semibold text-[var(--betanor-header-text)]">{customer?.name || customer?.legal_name || (isStaffPreview ? "Staff customer preview" : "Customer portal")}</p><p className="text-xs text-[var(--betanor-muted)]">{isStaffPreview ? "Preview mode · no customer records" : "Secure customer workspace"}</p></div>{access?.customer_id ? <NotificationBell userId={userId} surface="customer" /> : null}<CustomerPortalNav isStaff={isStaff} hasCustomerAccess={Boolean(access?.customer_id)} /></div></header><CustomerPortalRealtime customerId={access?.customer_id} />{children}<SiteFooter showRfq={Boolean(access?.customer_id)} /></div>;
 }

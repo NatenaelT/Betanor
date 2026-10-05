@@ -1,5 +1,13 @@
 # Proposed Route Map
 
+## Noren first integrated release
+
+- `/workspace/noren` redirects to `/workspace/noren/inbox`.
+- `/workspace/noren/inbox` shows the signed-in staff member's canonical notifications, unread and assigned-task filters, read/unread actions and authorized links.
+- `/api/noren/notifications` provides recipient-scoped paginated GET and own-read-state PATCH. It does not create notifications.
+- `/portal/notifications` shows customer support notifications only for currently authorized customer tickets, with the same read/unread interactions.
+- `/workspace/chats` and `/workspace/support` remain the canonical communication routes and appear under Noren navigation. Unimplemented channels/calls are not linked as if available.
+
 The route map below records the target App Router surface. Public and core workspace routes marked as implemented are live; remaining routes stay planned until their module phase is approved.
 
 | Area | Proposed paths | Access |
