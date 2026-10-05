@@ -44,7 +44,20 @@ Payroll managers can edit draft payroll directly at `/workspace/payslips`; each 
 
 Telegram is configured from the existing `/workspace/admin/settings` page (`settings.manage`) and linked from `/workspace/profile` or `/account/profile`; the Telegram webhook and dispatcher are server-side Supabase Edge Function actions, not public application pages.
 +
-+## Email correspondence
++## Embedded mailbox and business correspondence
++
++- /workspace/mailbox — account-scoped inbox, sent/drafts/archive/trash, compose, reply/reply-all/forward, flags, signature settings and optional administrator transport settings.
++- /workspace/emails — linked business correspondence register and search.
++- /workspace/emails/new — linked compose route; send uses the authenticated user's connected mailbox.
++- /workspace/emails/[id] — view stored correspondence and linked business records.
++- /workspace/emails/[id]/edit — update the sender's draft.
++- /api/mailbox/connection, /api/mailbox/settings — connect/disconnect a user's registered mailbox and administrator-managed organization server settings.
++- /api/mailbox/messages, /api/mailbox/messages/[id], /api/mailbox/messages/[id]/send, /api/mailbox/messages/[id]/actions — scoped message list/detail, send and mailbox actions.
++- /api/mailbox/sync — bounded IMAP inbox sync for the authenticated mailbox.
++- /api/mailbox/attachments — attach metadata after private resumable upload; /api/mailbox/attachments/[id] creates a short-lived signed download.
++- /api/emails, /api/emails/[id], /api/emails/related-options — existing authenticated correspondence routes with RBAC/RLS.
++
++Letter details offer an email-to-recipient shortcut; project and task details offer linked compose shortcuts. Customer roles do not see the staff mailbox or its APIs.
 +
 +- /workspace/emails — paginated email register, filtered by status/search and scoped by email RBAC.
 +- /workspace/emails/new — compose, save draft, send, and attach verified letter/project/task/tender/quotation/contract/RFQ/customer/support/employee links.

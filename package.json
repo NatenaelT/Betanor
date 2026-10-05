@@ -12,10 +12,13 @@
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.116.0",
     "fflate": "0.8.2",
+    "imapflow": "^2.2.4",
+    "mailparser": "^3.9.34",
     "next": "16.3.5",
     "nodemailer": "^10.0.10",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "tus-js-client": "^4.3.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "4.6.5"
   },

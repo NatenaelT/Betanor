@@ -196,7 +196,19 @@ Support ticket numbers (`BTNR-TKT-YYYY-XXXXX`) and guest request numbers (`BTNR-
 +
 +## Email correspondence and tender checklist extensions
 +
-+email_messages stores outbound correspondence with the authenticated staff sender, To/CC addresses, participant profile IDs, subject/body, provider delivery result, status and optional parent message. email_message_links attaches one message to one or more business records by module and record UUID; the record is verified against the user's RLS-visible row before a link is saved. This is an outbound correspondence register, not an IMAP mailbox; inbound mail is not imported.
++email_messages stores mailbox correspondence and the existing linked-business-email log. email_mailboxes maps exactly one staff profile to the email address on that profile's Supabase Auth user, stores signature and sync cursor, and never contains a plaintext password. email_mailbox_credentials stores AES-256-GCM ciphertext only; its table is not granted to authenticated or anon roles and credential RPCs authorize the mailbox owner. The encryption key is a server-only deployment secret, separate from Supabase.
++
++email_mailbox_settings stores organization IMAP/SMTP host, port, TLS mode and a configurable 1–50 MiB attachment limit. Defaults for Betanor's cPanel service are IMAP TLS 993 and SMTP TLS 465 on ouzo.hostns.io; administrators can change these when the provider's Connect Devices panel specifies other values. email_messages includes mailbox/folder, IMAP UID/UIDVALIDITY, received date, read/starred flags and thread parent. email_attachments stores private-storage object metadata. INBOX, SENT, DRAFTS, ARCHIVE and TRASH are portal views; archive/trash do not delete the source email on the mail server.
++
++Conceptual relationships:
++
++PROFILE → EMAIL_MAILBOX → EMAIL_MAILBOX_CREDENTIALS
++WORKSPACE → EMAIL_MAILBOX_SETTINGS
++EMAIL_MAILBOX → EMAIL_MESSAGE → EMAIL_ATTACHMENT
++EMAIL_MESSAGE → EMAIL_MESSAGE (reply/thread parent)
++EMAIL_MESSAGE → EMAIL_MESSAGE_LINK → LETTER / PROJECT / TASK / TENDER / QUOTATION / CONTRACT / RFQ / CUSTOMER / SUPPORT_TICKET / EMPLOYEE
++
++Received messages are synchronized in bounded batches over IMAP; the mailbox page performs a bounded sync while open and offers a manual Sync action. The portal does not keep a permanent IMAP socket open on a serverless host. Message bodies are imported as plain text and rendered as text, not trusted remote HTML. Standard staff email RLS scopes messages to the mailbox owner or authorized workspace readers; customers receive no mailbox access. Attachment objects use a private bucket, short-lived signed downloads, per-user/message paths and Storage RLS. Submitted message content is database-protected from changes; read/star/folder metadata remains mutable.
 +
 +Conceptual relationships:
 +
@@ -206,4 +218,4 @@ Support ticket numbers (`BTNR-TKT-YYYY-XXXXX`) and guest request numbers (`BTNR-
 +
 +The recipient_name on letters is nullable; organization, subject, body and signatory retain their existing validation. Tender checklist items include category, optional description, mandatory/completion flags and optional private-storage attachment metadata. The betanor-tender-checklists bucket is private; tender read/edit access is enforced by Storage RLS and submitted tender checklist rows/files are locked. CPO and guarantee checklist rows default to optional; authorized staff may mark them mandatory when the actual tender requires it.
 +
-+SMTP secrets are server-only deployment configuration, never database fields: BETANOR_SMTP_HOST, BETANOR_SMTP_PORT, BETANOR_SMTP_USER, BETANOR_SMTP_PASSWORD, BETANOR_SMTP_FROM, with optional BETANOR_SMTP_FROM_NAME, BETANOR_SMTP_SECURE, and BETANOR_SMTP_REPLY_TO.
++MAILBOX_ENCRYPTION_KEY is a server-only Vercel environment secret containing 32 random bytes (base64 or 64-character hex). Keep it stable across production instances and backups; rotating it requires re-encrypting every stored mailbox password. Each user's mail password is entered only by that user and encrypted before storage. Do not add mail passwords to profiles, logs, browser storage or shared SMTP settings.

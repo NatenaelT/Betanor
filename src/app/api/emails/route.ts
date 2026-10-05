@@ -122,8 +122,11 @@ export async function POST(request: Request) {
     supabase.from("profiles").select("full_name,email_address").eq("id", access.userId).eq("workspace_id", access.workspaceId).maybeSingle(),
     supabase.auth.getUser(),
   ]);
-  const senderEmail = profile?.email_address?.trim().toLowerCase() || authUser.user?.email?.trim().toLowerCase();
+  const senderEmail = authUser.user?.email?.trim().toLowerCase();
   if (!senderEmail) return NextResponse.json({ error: "Add a work email address to your staff profile before sending." }, { status: 422 });
+  const { data: mailbox } = await supabase.from("email_mailboxes")
+    .select("id,email_address,status").eq("profile_id", access.userId).maybeSingle();
+  const mailboxId = mailbox?.status === "CONNECTED" && mailbox.email_address.toLowerCase() === senderEmail ? mailbox.id : null;
   const allAddresses = [...new Set([...toAddresses, ...ccAddresses])];
   const { data: staffProfiles } = await supabase.from("profiles").select("id,email_address")
     .eq("workspace_id", access.workspaceId).eq("is_active", true).in("email_address", allAddresses);
@@ -133,6 +136,7 @@ export async function POST(request: Request) {
 
   const { data: message, error: insertError } = await supabase.from("email_messages").insert({
     workspace_id: access.workspaceId,
+    mailbox_id: mailboxId,
     sender_profile_id: access.userId,
     sender_email: senderEmail,
     sender_name: profile?.full_name?.trim() || senderEmail,
@@ -143,6 +147,7 @@ export async function POST(request: Request) {
     body_text: bodyText,
     body_html: `<p>${bodyText.split(/\r?\n/).map((line: string) => line.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")).join("<br/>")}</p>`,
     status: "DRAFT",
+    mail_folder: "DRAFTS",
     parent_message_id: parentMessageId,
   }).select("id").single();
   if (insertError || !message) return NextResponse.json({ error: insertError?.message || "The email draft could not be saved." }, { status: 400 });
@@ -162,6 +167,9 @@ export async function POST(request: Request) {
 
   try {
     const sent = await deliverPortalEmail({
+      supabase,
+      workspaceId: access.workspaceId,
+      profileId: access.userId,
       to: toAddresses,
       cc: ccAddresses,
       subject,
@@ -176,14 +184,14 @@ export async function POST(request: Request) {
       }, { status: 503 });
     }
     const { error: sentUpdateError } = await supabase.from("email_messages")
-      .update({ status: "SENT", provider_message_id: sent.messageId, sent_at: new Date().toISOString(), delivery_error: null })
+      .update({ status: "SENT", mail_folder: "SENT", provider_message_id: sent.messageId, sent_at: new Date().toISOString(), delivery_error: null })
       .eq("id", message.id)
       .eq("status", "DRAFT");
     if (sentUpdateError) return NextResponse.json({ id: message.id, status: "SENT", error: "Email was accepted by the mail server but its portal log could not be updated." }, { status: 202 });
     return NextResponse.json({ id: message.id, status: "SENT" }, { status: 201 });
   } catch (error) {
     const { error: updateError } = await supabase.from("email_messages")
-      .update({ status: "FAILED", delivery_error: "SMTP delivery failed. Check the mail server settings and retry." })
+      .update({ status: "FAILED", mail_folder: "SENT", delivery_error: "SMTP delivery failed. Check the mailbox settings and retry." })
       .eq("id", message.id)
       .eq("status", "DRAFT");
     console.error("Betanor outbound email delivery failed", error instanceof Error ? error.name : "unknown");

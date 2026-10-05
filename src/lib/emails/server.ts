@@ -1,5 +1,4 @@
-import nodemailer from "nodemailer";
-
+import { createSmtpTransport, getMailboxPassword, mailboxSettings, safeMessageHtml } from "@/lib/emails/mailbox";
 import { createClient } from "@/lib/supabase/server";
 import { resolveWorkspace } from "@/lib/workspace-context";
 
@@ -9,61 +8,50 @@ export async function emailAuth() {
   return { supabase, access };
 }
 
-export function emailTransportConfiguration() {
-  const host = process.env.BETANOR_SMTP_HOST?.trim();
-  const port = Number(process.env.BETANOR_SMTP_PORT || 587);
-  const user = process.env.BETANOR_SMTP_USER?.trim();
-  const password = process.env.BETANOR_SMTP_PASSWORD;
-  const from = process.env.BETANOR_SMTP_FROM?.trim();
-  if (!host || !Number.isInteger(port) || port < 1 || port > 65535 || !user || !password || !from) return null;
-  const fromName = process.env.BETANOR_SMTP_FROM_NAME?.trim() || "Betanor";
-  const secure = process.env.BETANOR_SMTP_SECURE === "true" || port === 465;
-  const replyTo = process.env.BETANOR_SMTP_REPLY_TO?.trim() || undefined;
-  return { host, port, user, password, from, fromName, secure, replyTo };
-}
-
 export function isEmailDeliveryConfigured() {
-  return emailTransportConfiguration() !== null;
-}
-
-export function escapeEmailText(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+  return Boolean(process.env.MAILBOX_ENCRYPTION_KEY);
 }
 
 export async function deliverPortalEmail(input: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  workspaceId: string;
+  profileId: string;
   to: string[];
   cc: string[];
   subject: string;
   body: string;
   replyTo: string;
 }) {
-  const config = emailTransportConfiguration();
-  if (!config) return { configured: false as const };
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: { user: config.user, pass: config.password },
-    connectionTimeout: 12_000,
-    greetingTimeout: 12_000,
-    socketTimeout: 20_000,
-    tls: { rejectUnauthorized: true },
-  });
-  const result = await transporter.sendMail({
-    from: { name: config.fromName, address: config.from },
-    to: input.to,
-    cc: input.cc.length ? input.cc : undefined,
-    replyTo: config.replyTo || input.replyTo,
-    subject: input.subject,
-    text: input.body,
-    html: `<div style="font-family:Arial,sans-serif;line-height:1.65;color:#172b4d;white-space:pre-wrap">${escapeEmailText(input.body)}</div>`,
-  });
-  return { configured: true as const, messageId: result.messageId };
+  const { data: authData } = await input.supabase.auth.getUser();
+  const { data: mailbox } = await input.supabase.from("email_mailboxes")
+    .select("id,email_address,signature_text").eq("profile_id", input.profileId)
+    .eq("workspace_id", input.workspaceId).maybeSingle();
+  if (!mailbox || !process.env.MAILBOX_ENCRYPTION_KEY
+    || authData.user?.id !== input.profileId
+    || mailbox.email_address.toLowerCase() !== authData.user.email?.trim().toLowerCase()) {
+    return { configured: false as const };
+  }
+  const password = await getMailboxPassword(input.supabase, mailbox.id);
+  const settings = await mailboxSettings(input.supabase, input.workspaceId);
+  const transporter = createSmtpTransport(settings, mailbox.email_address, password);
+  const signature = typeof mailbox.signature_text === "string" ? mailbox.signature_text.trim() : "";
+  const body = signature && !input.body.trimEnd().endsWith(signature)
+    ? `${input.body.trimEnd()}\n\n${signature}`
+    : input.body;
+  try {
+    const result = await transporter.sendMail({
+      from: { name: mailbox.email_address, address: mailbox.email_address },
+      to: input.to,
+      cc: input.cc.length ? input.cc : undefined,
+      replyTo: mailbox.email_address,
+      subject: input.subject,
+      text: body,
+      html: safeMessageHtml(body),
+    });
+    return { configured: true as const, messageId: result.messageId };
+  } finally {
+    transporter.close();
+  }
 }
 
 export function normalizeAddresses(value: unknown) {

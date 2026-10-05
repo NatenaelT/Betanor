@@ -128,11 +128,11 @@ Migration `202609230001_it_support_managed_support.sql` adds `support.read`, `su
 +
 +## Email permissions
 +
-+| Role scope | Read own/participant messages | Send | Read all workspace email | Manage |
-+|---|---:|---:|---:|---:|
-+| Super Admin | Yes | Yes | Yes | Yes |
-+| Admin | Yes | Yes | Yes | Yes |
-+| Built-in staff roles | Yes | Yes | No | No |
-+| Customer roles | No | No | No | No |
++| Role scope | Read own/participant mail | Send from registered mailbox | Connect own mailbox / signature | Configure organization mail servers | Read all workspace mail |
++|---|---:|---:|---:|---:|---:|
++| Super Admin | Yes | Yes | Yes | Yes | Yes |
++| Admin | Yes | Yes | Yes | Yes | Yes |
++| Built-in staff roles | Yes | Yes | Yes | No | No |
++| Customer roles | No | No | No | No | No |
 +
-+The application uses email.read, email.send, email.read_all, and email.manage. Supabase RLS scopes standard staff reads to the sender or a matched internal participant; only users with email.read_all can read all workspace messages. Customer users receive none of these permissions. Linking a message to a business record additionally relies on that record's existing RLS policy; no module permission bypass is added.
++The application uses email.read, email.send, email.read_all, and email.manage. Mailbox connection and signature updates are self-scoped to the authenticated profile; a server trigger ensures the address matches auth.users.email. email.manage is required to change shared host/port/TLS/attachment-size settings; email.read_all separately controls workspace-wide message visibility. Encrypted credentials are not readable through normal table grants. Supabase RLS scopes standard staff reads to the sender/mailbox owner or a matched internal participant; only users with email.read_all can read all workspace messages. Customer users receive none of these permissions. Linking a message to a business record additionally relies on that record's existing RLS policy; no module permission bypass is added.

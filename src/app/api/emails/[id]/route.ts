@@ -87,13 +87,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.action !== "send") return NextResponse.json({ id, status: "DRAFT" });
 
   try {
-    const sent = await deliverPortalEmail({ to: toAddresses, cc: ccAddresses, subject, body: bodyText, replyTo: existing.sender_email });
+    const sent = await deliverPortalEmail({
+      supabase,
+      workspaceId: access.workspaceId,
+      profileId: access.userId,
+      to: toAddresses,
+      cc: ccAddresses,
+      subject,
+      body: bodyText,
+      replyTo: existing.sender_email,
+    });
     if (!sent.configured) return NextResponse.json({ id, status: "DRAFT", error: "The message is saved as a draft, but SMTP delivery is not configured for the portal yet." }, { status: 503 });
-    const { error: sentUpdateError } = await supabase.from("email_messages").update({ status: "SENT", provider_message_id: sent.messageId, sent_at: new Date().toISOString() }).eq("id", id).eq("status", "DRAFT");
+    const { error: sentUpdateError } = await supabase.from("email_messages").update({ status: "SENT", mail_folder: "SENT", provider_message_id: sent.messageId, sent_at: new Date().toISOString() }).eq("id", id).eq("status", "DRAFT");
     if (sentUpdateError) return NextResponse.json({ id, status: "SENT", error: "Email was accepted by the mail server but its portal log could not be updated." }, { status: 202 });
     return NextResponse.json({ id, status: "SENT" });
   } catch (error) {
-    await supabase.from("email_messages").update({ status: "FAILED", delivery_error: "SMTP delivery failed. Check the mail server settings and retry." }).eq("id", id).eq("status", "DRAFT");
+    await supabase.from("email_messages").update({ status: "FAILED", mail_folder: "SENT", delivery_error: "SMTP delivery failed. Check the mailbox settings and retry." }).eq("id", id).eq("status", "DRAFT");
     console.error("Betanor outbound email delivery failed", error instanceof Error ? error.name : "unknown");
     return NextResponse.json({ id, status: "FAILED", error: "The message could not be delivered. It remains in the email register." }, { status: 502 });
   }

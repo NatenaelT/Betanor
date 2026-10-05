@@ -62,7 +62,7 @@ Phase B–H will not be started until Phase A checks and acceptance are complete
 +
 +### Letter and email correspondence
 +
-+Recipient name on an official letter is optional; recipient organization and the remaining required letter content keep their current validation. Authorized staff may open a letter, project or task and start a message with that record pre-linked, or compose from the Emails register and search for other records they can access. Drafts remain editable by their sender; sent message content is immutable. Delivery uses deployment SMTP settings; when SMTP is absent, send is disabled and drafts can still be saved without being reported as delivered.
++Recipient name on an official letter is optional; recipient organization and the remaining required letter content keep their current validation. Staff connect their own mailbox with the email address already registered on their Supabase Auth account and enter their mail password once over HTTPS. Betanor tests IMAP/SMTP TLS, encrypts the password with the deployment-only MAILBOX_ENCRYPTION_KEY, and never exposes it back to the browser or administrator. Drafts can be saved, then attached to from private resumable storage; sending authenticates to SMTP as that staff member and automatically appends their signature. Inbox sync reads new IMAP messages into an account-scoped portal folder; content is plain-text-rendered, and archive/trash remain portal views rather than remote-server deletion. Admins configure organization mail hosts/ports/TLS and attachment size; mail-provider size limits can be lower than the portal/storage limit. If the deployment encryption key or mailbox credentials are missing, the portal reports that explicitly and does not claim delivery.
 +
 +### Tender checklist
 +

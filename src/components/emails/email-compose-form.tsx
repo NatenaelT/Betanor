@@ -129,7 +129,7 @@ export function EmailComposeForm({
       {options.length ? <ul className="mt-3 max-h-56 divide-y overflow-auto rounded-lg border border-[var(--betanor-border)]">{options.map((option) => <li key={option.id}><button type="button" onClick={() => addLink(option)} className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50">{option.label}</button></li>)}</ul> : null}
     </Card>
 
-    {!deliveryConfigured ? <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">SMTP delivery is not configured on this deployment yet. You can save drafts now; Send will remain disabled until server mail settings are added.</p> : null}
+    {!deliveryConfigured ? <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Connect your registered staff mailbox before sending. You can save drafts now. <a href="/workspace/mailbox" className="font-semibold underline">Open mailbox settings</a>.</p> : null}
     {feedback ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">{feedback}{savedDraftId ? <> <a className="font-semibold underline" href={`/workspace/emails/${savedDraftId}`}>Open saved draft</a></> : null}</p> : null}
     <div className="flex flex-wrap justify-end gap-3"><Button type="submit" variant="outline" disabled={working}>{working ? "Saving…" : "Save draft"}</Button><Button type="button" disabled={working || !deliveryConfigured} onClick={() => { const form = formRef.current; if (form?.reportValidity()) void save(form, "send"); }}>{working ? "Sending…" : "Send email"}</Button></div>
   </form>;
