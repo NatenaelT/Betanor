@@ -7,7 +7,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
 }
 
 export function FieldLabel({ className, required, children, ...props }: LabelHTMLAttributes<HTMLLabelElement> & { required?: boolean }) {
-  return <label className={cn("mb-1.5 block text-sm font-semibold text-[var(--betanor-header-text)]", className)} data-required={required ? "true" : undefined} {...props}>{children}{required ? <span aria-hidden="true" className="ml-1 text-[var(--betanor-danger)]">*</span> : null}</label>;
+  return <label className={cn("relative mb-1.5 block pr-4 text-sm font-semibold text-[var(--betanor-header-text)]", className)} data-required={required ? "true" : undefined} {...props}>{children}{required ? <span aria-hidden="true" className="absolute top-0 right-0 text-[var(--betanor-danger)]">*</span> : null}</label>;
 }
 
 export function FieldHint({ children }: { children: ReactNode }) {

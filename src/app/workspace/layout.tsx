@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { WorkspaceSidebar } from "@/components/navigation/workspace-sidebar";
 import { WorkspaceTopbar } from "@/components/navigation/workspace-topbar";
+import { StaffPresenceProvider } from "@/components/chat/staff-presence-provider";
 import { createClient } from "@/lib/supabase/server";
 import { resolveWorkspace } from "@/lib/workspace-context";
 
@@ -25,6 +26,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   const { data: profile } = access.userId ? await supabase.from("profiles").select("full_name,avatar_path").eq("id", access.userId).maybeSingle() : { data: null };
   const avatarUrl = profile?.avatar_path ? (await supabase.storage.from("betanor-profile-avatars").createSignedUrl(profile.avatar_path, 900)).data?.signedUrl : null;
   return (
+    <StaffPresenceProvider workspaceId={access.workspaceId} userId={access.userId} enabled={access.hasStaffRole}>
     <div className="flex min-h-screen bg-[var(--betanor-surface)]">
       <WorkspaceSidebar permissionCodes={[...access.permissions]} roleCodes={[...access.roleCodes]} hasStaffRole={access.hasStaffRole} />
       <div className="min-w-0 flex-1">
@@ -32,5 +34,6 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
         {children}
       </div>
     </div>
+    </StaffPresenceProvider>
   );
 }

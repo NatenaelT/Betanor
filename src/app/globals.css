@@ -91,15 +91,28 @@ textarea:focus {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--betanor-field-focus) 18%, transparent);
 }
 
-/* Required controls declare the truth on the input itself. This keeps the
-   indicator consistent even in legacy forms that have not moved to FieldLabel
-   yet, without making optional fields required. */
+/* Required controls declare truth on the field. Keep the asterisk pinned to
+   the label's upper-right corner in legacy forms while avoiding checkboxes. */
+label:not([data-required]):not(:has(input[type="checkbox"], input[type="radio"])):has(input[required], select[required], textarea[required]) {
+  position: relative;
+  padding-right: 0.9rem;
+}
+label:not([data-required]):has(+ input[required]),
+label:not([data-required]):has(+ select[required]),
+label:not([data-required]):has(+ textarea[required]) {
+  position: relative;
+  padding-right: 0.9rem;
+}
+label:not([data-required]):not(:has(input[type="checkbox"], input[type="radio"])):has(input[required], select[required], textarea[required])::after,
 label:not([data-required]):has(+ input[required])::after,
 label:not([data-required]):has(+ select[required])::after,
-label:not([data-required]):has(+ textarea[required])::after,
-label:not([data-required]):has(input[required])::after {
-  content: " *";
+label:not([data-required]):has(+ textarea[required])::after {
+  content: "*";
+  position: absolute;
+  top: 0;
+  right: 0;
   color: var(--betanor-danger);
+  font-weight: 700;
 }
 
 .letter-rich-text p { margin: 0 0 0.9rem; }

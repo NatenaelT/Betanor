@@ -14,9 +14,9 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const sizes: Record<ButtonSize, string> = {
-  sm: "min-h-8 px-3 text-xs",
-  md: "min-h-10 px-4 text-sm",
-  lg: "min-h-12 px-5 text-base",
+  sm: "min-h-9 px-2.5 text-[11px] sm:min-h-8 sm:px-3 sm:text-xs",
+  md: "min-h-9 px-3 text-xs sm:min-h-10 sm:px-4 sm:text-sm",
+  lg: "min-h-10 px-3 text-sm sm:min-h-12 sm:px-5 sm:text-base",
 };
 
 export function Button({ className, size = "md", variant = "primary", type = "button", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: ButtonSize; variant?: ButtonVariant }) {

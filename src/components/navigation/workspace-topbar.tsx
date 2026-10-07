@@ -7,7 +7,7 @@ import { useState } from "react";
 import { NotificationBell } from "@/components/noren/notification-bell";
 import { createClient } from "@/lib/supabase/client";
 
-const quickLinks = [{ href: "/workspace", label: "Workspace overview" }, { href: "/workspace/finance", label: "Finance overview" }, { href: "/workspace/expenses", label: "Expenses" }, { href: "/workspace/invoices", label: "Invoices & payments" }];
+const quickLinks = [{ href: "/workspace", label: "My modules" }, { href: "/workspace/overview", label: "Workspace overview" }, { href: "/workspace/finance", label: "Finance overview" }, { href: "/workspace/expenses", label: "Expenses" }, { href: "/workspace/invoices", label: "Invoices & payments" }];
 
 export function WorkspaceTopbar({ email, displayName, avatarUrl, userId }: { email: string; displayName?: string | null; avatarUrl?: string | null; userId: string }) {
   const router = useRouter();

@@ -174,6 +174,10 @@ Auth administration is intentionally not a public table operation. The `admin-us
 
 `chat_conversations` serves both support and internal collaboration. Customer conversations have `customer_id`; internal conversations leave it null. Each internal message is marked `is_internal`, and customer policies allow only non-internal messages for their own customer. Realtime publication on conversations/messages keeps both inboxes current without sharing private staff notes.
 
+The local (not yet production-applied) migration `202610070001_workspace_modules_chat_collaboration.sql` adds nullable `chat_messages.project_id` for project activity links and `chat_message_pins` for pinned messages/activities. Pins reference both the source message and conversation and cascade with deletion of either; authenticated reads, pinning and unpinning require `chat.manage` on the conversation workspace. The same migration adds `list_chat_staff_roster()`, a minimal staff-only, workspace-scoped roster function. It returns names/job titles/employee numbers only, and requires an active staff profile with `chat.manage`.
+
+Staff online/offline indicators use private Supabase Realtime Presence channels named `workspace:<workspace-id>:staff-presence`. Presence payloads contain the acting profile UUID and timestamp only. `realtime.messages` policies require an active staff profile and constrain the topic to the profile's own workspace; the UI never sends workspace membership or authorization claims. Supabase Realtime's **Allow public access** setting must be disabled for these private-channel policies to be enforced. The migration is local until explicitly applied; do not infer that production has these objects.
+
 ## Support domain (planned Phases B–H)
 
 Support extends the canonical customer instead of creating a second customer identity:

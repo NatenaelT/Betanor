@@ -12,7 +12,7 @@ type NavigationItem = { href?: string; label: string; description?: string; perm
 type NavigationSection = { label?: string; items: NavigationItem[] };
 
 const sections: NavigationSection[] = [
-  { items: [{ href: "/workspace", label: "Overview", description: "Workspace pulse" }] },
+  { label: "Start here", items: [{ href: "/workspace", label: "Modules", description: "Role-assigned work areas" }, { href: "/workspace/overview", label: "Overview", description: "Personal dashboard" }] },
   { label: "People", items: [{ href: "/workspace/employees", label: "Employees", permission: ["hr.read", "hr.manage", "users.manage"] }, { href: "/workspace/leave", label: "Leave", permission: ["leave.request", "leave.approve"] }, { href: "/workspace/recruitment", label: "Recruitment", permission: "recruitment.manage" }, { href: "/workspace/payslips", label: "Payroll & payslips", permission: ["payroll.read_self", "payroll.manage"] }, { href: "/workspace/kpis", label: "KPIs", permission: ["kpi.read_self", "kpi.read_team", "kpi.configure", "kpi.review"] }] },
   { label: "Work", items: [{ href: "/workspace/projects", label: "Projects", permission: "project.manage" }, { href: "/workspace/tasks", label: "Tasks", permission: ["task.create", "task.assign", "task.edit"] }, { href: "/workspace/my-work", label: "My work", staffOnly: true }] },
   { label: "Noren", items: [{ href: "/workspace/noren/inbox", label: "Inbox", description: "Your notifications & assignments", staffOnly: true }, { href: "/workspace/chats", label: "Conversations", permission: ["chat.manage", "chat.internal.read"] }, { href: "/workspace/support", label: "Support chats", permission: ["support.read", "support.view_all"] }] },
@@ -27,7 +27,7 @@ const sections: NavigationSection[] = [
 ];
 
 const iconByLabel: Record<string, string> = {
-  Overview: "overview", Employees: "employee", Leave: "leave", Recruitment: "recruitment", "Payroll & payslips": "payroll", KPIs: "kpi",
+  Modules: "modules", Overview: "overview", Employees: "employee", Leave: "leave", Recruitment: "recruitment", "Payroll & payslips": "payroll", KPIs: "kpi",
   Projects: "projects", Tasks: "tasks", "My work": "my-work", "IT Support / Managed Support": "support", "Finance overview": "finance",
   Expenses: "expenses", Budgets: "budget", "Invoices & payments": "invoice", "Files & documents": "files", Letters: "letters", CRM: "crm",
   RFQs: "rfq", Quotations: "quotation", Contracts: "contract", Chats: "chat", Conversations: "chat", "Support chats": "support", Inbox: "inbox", Emails: "email", Mailbox: "email", "Tender management": "tender",
@@ -38,6 +38,7 @@ const iconByLabel: Record<string, string> = {
 function NavIcon({ name, className }: { name: string; className?: string }) {
   const common = { className, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true as const };
   switch (name) {
+    case "modules": return <svg {...common}><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>;
     case "overview": return <svg {...common}><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z" /></svg>;
     case "employee": return <svg {...common}><circle cx="12" cy="7" r="4" /><path d="M5 21v-2a7 7 0 0 1 14 0v2M19 8h3m-1.5-1.5v3" /></svg>;
     case "leave": return <svg {...common}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4m10-4v4M3 10h18m-13 4h4m-4 3h7" /></svg>;
@@ -100,7 +101,7 @@ function NavigationContents({
 
   return <div className="flex h-full min-h-0 flex-col">
     <div className={cn("flex min-h-20 items-center justify-between gap-2 border-b border-[var(--betanor-nav-text)]/10 px-4 py-4", collapsed && "justify-center px-2")}>
-      <Link href="/workspace" aria-label="Betanor workspace overview" onClick={close} className="min-w-0">
+      <Link href="/workspace" aria-label="Betanor modules" onClick={close} className="min-w-0">
         <BetanorMark className={cn("flex min-w-0 items-center gap-3", collapsed && "justify-center [&>span]:hidden")} dark />
       </Link>
       {toggleCollapsed ? <button type="button" onClick={toggleCollapsed} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} title={collapsed ? "Expand navigation" : "Collapse navigation"} className="hidden size-9 shrink-0 place-items-center rounded-xl text-lg text-[var(--betanor-nav-text)]/70 transition hover:bg-[var(--betanor-nav-hover)] hover:text-[var(--betanor-nav-text)] lg:grid">{collapsed ? "›" : "‹"}</button> : null}

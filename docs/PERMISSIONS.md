@@ -137,6 +137,8 @@ Migration `202609230001_it_support_managed_support.sql` adds `support.read`, `su
 - `user_permissions` stores explicit per-user allow/deny overrides. A matching override wins over the role bundle, so an administrator can switch any catalogue capability on or off without creating a new role. The table is RLS-protected; browser mutations go through the authenticated Edge Function.
 - Customer provisioning creates the customer record and `customer_portal_access` link in the same admin flow. Revoking or deleting an identity disables the link while preserving commercial history.
 - Staff chat and customer chat share the conversation store, but internal messages carry `is_internal = true` and are excluded from customer RLS reads. `start_internal_chat` requires `chat.manage`.
+
+The chat collaboration migration keeps presence and pinned activity staff-only. `list_chat_staff_roster()` checks active staff plus `chat.manage`, returns only minimal roster fields within the caller's workspace, and does not return email addresses. Private Realtime Presence is scoped to `workspace:<caller-workspace-id>:staff-presence`; database authorization checks the active staff profile and topic. Chat-created task assignment still calls the existing `create_task_with_assignee` RPC, which enforces task permissions and emits the platform's assignment notification. Project creation requires `project.manage`. Sharing a task/project first reads it through the caller's normal RLS and then posts an internal chat activity; no chat permission grants broader task/project access. Customer chat cannot see internal records or pins.
 +
 +## Email permissions
 +
