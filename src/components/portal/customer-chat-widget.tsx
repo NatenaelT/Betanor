@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,13 @@ type GuestRecord = { reference: string; status: string; message_id: string; send
 
 const GUEST_SESSION_KEY = "betanor-chat-session";
 
-export function CustomerChatWidget({ customerId: providedCustomerId }: { customerId?: string | null } = {}) {
+export function CustomerChatWidget(props: { customerId?: string | null } = {}) {
+  const pathname = usePathname();
+  if (pathname.startsWith("/workspace")) return null;
+  return <CustomerChatWidgetContent {...props} />;
+}
+
+function CustomerChatWidgetContent({ customerId: providedCustomerId }: { customerId?: string | null }) {
   const [open, setOpen] = useState(false);
   const [topic, setTopic] = useState("Customer support");
   const [body, setBody] = useState("");
@@ -174,7 +181,7 @@ export function CustomerChatWidget({ customerId: providedCustomerId }: { custome
     return "A support specialist will reply here";
   }, [conversation, typing]);
 
-  return <div className="fixed right-4 bottom-4 z-[60] sm:right-6 sm:bottom-6">
+  return <div className="pwa-safe-floating fixed z-[60]">
     <button type="button" aria-expanded={open} aria-label={open ? "Close live chat" : "Open live chat"} onClick={() => setOpen((value) => !value)} className="grid size-14 place-items-center rounded-full bg-[var(--betanor-button-bg)] text-2xl text-[var(--betanor-button-text)] shadow-xl ring-4 ring-white transition-transform hover:scale-105">{open ? "×" : "💬"}</button>
     {open ? <div className="absolute right-0 bottom-18 flex w-[min(92vw,24rem)] flex-col overflow-hidden rounded-2xl border border-[var(--betanor-border)] bg-white shadow-2xl">
       <div className="bg-[var(--betanor-navy)] px-4 py-3 text-white"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold">Betanor live support</p><p className="mt-1 text-xs text-blue-100">{statusLabel}</p></div><span className={`size-2 rounded-full ${online || !resolvedCustomerId ? "bg-emerald-400" : "bg-slate-400"}`} aria-label={online ? "Chat online" : "Chat offline"} /></div></div>

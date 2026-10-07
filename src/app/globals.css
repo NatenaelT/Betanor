@@ -49,6 +49,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--betanor-font-family, Aptos, Arial, Helvetica, sans-serif);
+  min-height: 100dvh;
 }
 
 h1,
@@ -69,6 +70,11 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--betanor-field-focus);
+  outline-offset: 2px;
 }
 
 select,
@@ -104,3 +110,39 @@ label:not([data-required]):has(input[required])::after {
 .letter-rich-text table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
 .letter-rich-text th, .letter-rich-text td { border: 1px solid var(--betanor-border); padding: 0.5rem; text-align: left; }
 .letter-rich-text blockquote { border-left: 3px solid var(--betanor-gold); padding-left: 1rem; color: var(--betanor-muted); }
+
+/* PWA safe areas: keep navigation and fixed controls clear of device cutouts
+   and home indicators in iOS standalone mode. */
+.pwa-safe-top { padding-top: env(safe-area-inset-top); }
+.pwa-safe-floating {
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+.pwa-safe-notice {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: calc(5rem + env(safe-area-inset-bottom));
+  left: max(1rem, env(safe-area-inset-left));
+  pointer-events: none;
+}
+.pwa-safe-notice > * { pointer-events: auto; }
+.mobile-modal-backdrop { padding-bottom: env(safe-area-inset-bottom); }
+.mobile-modal-content { padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
+
+@media (max-width: 639px) {
+  /* Prevent Safari's automatic input zoom and leave room for touch interaction. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

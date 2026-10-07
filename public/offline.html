@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b264f" />
+    <title>You're offline | Betanor</title>
+    <style>
+      :root { color-scheme: light; font-family: Aptos, Arial, sans-serif; background: #f4f7fb; color: #17243a; }
+      * { box-sizing: border-box; }
+      body { min-height: 100dvh; margin: 0; display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
+      main { width: min(100%, 440px); border: 1px solid #d9e1ec; border-radius: 24px; background: white; padding: clamp(24px, 7vw, 40px); text-align: center; box-shadow: 0 16px 48px -32px #0b264f80; }
+      img { width: 64px; height: 64px; object-fit: contain; }
+      h1 { margin: 20px 0 8px; color: #0b264f; font-size: clamp(24px, 7vw, 32px); }
+      p { color: #66758c; line-height: 1.65; }
+      button { min-height: 48px; margin-top: 12px; border: 0; border-radius: 12px; padding: 0 20px; background: #12356b; color: white; font: inherit; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/betanor-icon-192.png" alt="Betanor" width="64" height="64" />
+      <h1>You're offline</h1>
+      <p>Betanor needs an internet connection to securely load your workspace and customer records. Reconnect, then try again.</p>
+      <button type="button" onclick="location.reload()">Try again</button>
+    </main>
+  </body>
+</html>

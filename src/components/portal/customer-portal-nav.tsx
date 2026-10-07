@@ -14,7 +14,7 @@ export function CustomerPortalNav({ isStaff, hasCustomerAccess }: { isStaff: boo
   const [open, setOpen] = useState(false);
   const visibleLinks = hasCustomerAccess ? [...links.slice(0, 2), ["Notifications", "/portal/notifications"] as const, ...links.slice(2)] : links;
   return <>
-    <button type="button" aria-expanded={open} aria-label="Open customer portal menu" onClick={() => setOpen((value) => !value)} className="ml-auto grid size-10 place-items-center rounded-lg border border-[var(--betanor-field-border)] text-lg text-[var(--betanor-header-text)] hover:bg-[var(--betanor-surface)] lg:hidden">☰</button>
+    <button type="button" aria-expanded={open} aria-label="Open customer portal menu" onClick={() => setOpen((value) => !value)} className="ml-auto grid size-11 place-items-center rounded-lg border border-[var(--betanor-field-border)] text-lg text-[var(--betanor-header-text)] hover:bg-[var(--betanor-surface)] lg:hidden">☰</button>
     <nav aria-label="Customer portal navigation" className="hidden items-center gap-1 text-sm font-semibold text-[var(--betanor-navy)] lg:flex">
       {visibleLinks.map(([label, href]) => <Link key={href} href={href} className={cn("border-b-2 border-transparent px-3 py-2 transition-colors hover:border-[var(--betanor-gold)] hover:text-[var(--betanor-navy)]", pathname === href ? "border-[var(--betanor-gold)] text-[var(--betanor-navy)]" : "")}>{label}</Link>)}
       {isStaff ? <Link href="/workspace" className="border-b-2 border-transparent px-3 py-2 text-[var(--betanor-blue)] hover:border-[var(--betanor-gold)]">Staff workspace</Link> : null}

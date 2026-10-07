@@ -1,10 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { CSSProperties } from "react";
 
 import { CustomerChatWidget } from "@/components/portal/customer-chat-widget";
 import { AppDialogProvider } from "@/components/ui/app-dialog-provider";
 import { FieldTooltips } from "@/components/ui/field-tooltips";
-import { BETANOR_LOGO_DATA_URI } from "@/lib/brand-assets";
+import { PwaRuntime } from "@/components/pwa/pwa-runtime";
 import { loadCachedStyleSettings } from "@/lib/public-cache";
 import { googleFontsHref } from "@/lib/style-settings";
 import "./globals.css";
@@ -16,11 +16,28 @@ export const metadata: Metadata = {
   },
   description:
     "Betanor General Trading P.L.C. — technology consulting, implementation, and support.",
-  icons: {
-    icon: BETANOR_LOGO_DATA_URI,
-    shortcut: BETANOR_LOGO_DATA_URI,
-    apple: BETANOR_LOGO_DATA_URI,
+  applicationName: "Betanor Digital Business Platform",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Betanor",
+    statusBarStyle: "black-translucent",
   },
+  icons: {
+    icon: [
+      { url: "/betanor-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/betanor-icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/apple-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0b264f",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
@@ -59,7 +76,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <link rel="stylesheet" href={googleFontsHref(styleSettings)} />
       </head>
       <body className="min-h-full flex flex-col" style={style}>
-        <AppDialogProvider>{children}<CustomerChatWidget /><FieldTooltips /></AppDialogProvider>
+        <AppDialogProvider>{children}<CustomerChatWidget /><FieldTooltips /><PwaRuntime /></AppDialogProvider>
       </body>
     </html>
   );

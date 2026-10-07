@@ -134,7 +134,7 @@ export function WorkspaceSidebar({ permissionCodes = [], roleCodes = [], hasStaf
   const [isOpen, setIsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   return <>
-    <button aria-controls="workspace-mobile-navigation" aria-expanded={isOpen} aria-label="Open workspace navigation" className="fixed top-3 left-4 z-30 grid size-10 place-items-center rounded-xl border border-[var(--betanor-field-border)] bg-[var(--betanor-header-bg)] text-lg text-[var(--betanor-header-text)] shadow-sm lg:hidden print:hidden" onClick={() => setIsOpen(true)}>☰</button>
+    <button aria-controls="workspace-mobile-navigation" aria-expanded={isOpen} aria-label="Open workspace navigation" className="fixed top-3 left-4 z-30 grid size-11 place-items-center rounded-xl border border-[var(--betanor-field-border)] bg-[var(--betanor-header-bg)] text-lg text-[var(--betanor-header-text)] shadow-sm lg:hidden print:hidden" onClick={() => setIsOpen(true)}>☰</button>
     <aside className={cn("sticky top-0 hidden h-screen shrink-0 border-r border-[var(--betanor-nav-text)]/10 bg-[var(--betanor-nav-bg)] text-[var(--betanor-nav-text)] transition-[width] duration-200 lg:block print:hidden", collapsed ? "w-[76px]" : "w-[286px]")}>
       <NavigationContents collapsed={collapsed} toggleCollapsed={() => setCollapsed((value) => !value)} permissionCodes={permissionCodes} roleCodes={roleCodes} hasStaffRole={hasStaffRole} />
     </aside>
