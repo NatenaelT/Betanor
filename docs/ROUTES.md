@@ -18,7 +18,7 @@ The route map below records the target App Router surface. Public and core works
 | Customer portal | `/portal`, `/portal/rfqs`, `/portal/quotations/[id]`, `/portal/contracts/[id]`, `/portal/projects/[id]` | mapped customer contact |
 | Workspace | `/workspace` (role-filtered module landing), `/workspace/overview` (personalized dashboard), `/workspace/inbox`, `/workspace/search`, `/workspace/calendar` | staff; module and dashboard data filtered by permissions |
 | CRM & sales | `/workspace/customers`, `/workspace/leads`, `/workspace/rfqs`, `/workspace/quotations`, `/workspace/contracts`, `/workspace/chats` | sales/scoped staff |
-| Staff collaboration | `/workspace/chats` | active staff with `chat.manage`; roster presence is private and workspace-scoped; shared task/project records must also pass their own RLS |
+| Staff collaboration | `/workspace/chats` | active staff with `chat.manage`; roster presence is workspace-scoped through table RLS; shared task/project records must also pass their own RLS |
 | Delivery | `/workspace/projects`, `/workspace/projects/[id]`, `/workspace/tasks`, `/workspace/tasks/[id]`, `/workspace/my-work` | delivery/scoped staff (implemented) |
 | HR | `/workspace/recruitment`, `/workspace/jobs`, `/workspace/employees`, `/workspace/employees/[id]`, `/workspace/leave`, `/workspace/payslips` | HR/scoped staff (`recruitment`, employee profiles, and leave implemented) |
 | Finance | `/workspace/finance`, `/workspace/expenses`, `/workspace/budgets`, `/workspace/invoices` | finance/scoped staff (implemented dashboard, expense approvals, budgets, invoices/payments) |

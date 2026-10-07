@@ -15,20 +15,32 @@ export function StaffPresenceProvider({ workspaceId, userId, enabled, children }
   useEffect(() => {
     if (!enabled || !workspaceId || !userId) return;
     const supabase = createClient();
-    const channel = supabase.channel(`workspace:${workspaceId}:staff-presence`, {
-      config: { private: true, presence: { key: userId } },
-    });
-    channel.on("presence", { event: "sync" }, () => {
-      setPresence({ key: `${workspaceId}:${userId}`, ids: new Set(Object.keys(channel.presenceState())) });
-    });
-    channel.subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        void channel.track({ actor_id: userId, online_at: new Date().toISOString() });
-      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-        setPresence({ key: `${workspaceId}:${userId}`, ids: EMPTY_PRESENCE });
-      }
-    });
+    const key = `${workspaceId}:${userId}`;
+    const onlineSince = () => new Date(Date.now() - 120_000).toISOString();
+    const refreshPresence = async () => {
+      const { data, error } = await supabase
+        .from("chat_staff_presence")
+        .select("profile_id")
+        .eq("workspace_id", workspaceId)
+        .gte("last_seen_at", onlineSince());
+      if (!error) setPresence({ key, ids: new Set((data ?? []).map((entry) => entry.profile_id)) });
+    };
+    const heartbeat = async () => {
+      const { error } = await supabase.rpc("heartbeat_chat_staff_presence");
+      if (!error) await refreshPresence();
+    };
+    const channel = supabase.channel(`betanor-staff-presence-${workspaceId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_staff_presence", filter: `workspace_id=eq.${workspaceId}` }, () => void refreshPresence())
+      .subscribe();
+    void heartbeat();
+    const interval = window.setInterval(() => void heartbeat(), 30_000);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void heartbeat();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
     return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
       void supabase.removeChannel(channel);
     };
   }, [enabled, userId, workspaceId]);

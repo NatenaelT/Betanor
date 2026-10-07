@@ -26,7 +26,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   const { data: profile } = access.userId ? await supabase.from("profiles").select("full_name,avatar_path").eq("id", access.userId).maybeSingle() : { data: null };
   const avatarUrl = profile?.avatar_path ? (await supabase.storage.from("betanor-profile-avatars").createSignedUrl(profile.avatar_path, 900)).data?.signedUrl : null;
   return (
-    <StaffPresenceProvider workspaceId={access.workspaceId} userId={access.userId} enabled={access.hasStaffRole}>
+    <StaffPresenceProvider workspaceId={access.workspaceId} userId={access.userId} enabled={access.hasStaffRole && access.permissions.has("chat.manage")}>
     <div className="flex min-h-screen bg-[var(--betanor-surface)]">
       <WorkspaceSidebar permissionCodes={[...access.permissions]} roleCodes={[...access.roleCodes]} hasStaffRole={access.hasStaffRole} />
       <div className="min-w-0 flex-1">
