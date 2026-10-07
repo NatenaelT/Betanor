@@ -19,6 +19,15 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") void self.skipWaiting();
+  if (event.data?.type === "CLEAR_CACHE") {
+    event.waitUntil((async () => {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames
+        .filter((name) => name.startsWith(CACHE_PREFIX))
+        .map((name) => caches.delete(name)));
+      event.ports[0]?.postMessage({ ok: true });
+    })());
+  }
 });
 
 self.addEventListener("fetch", (event) => {

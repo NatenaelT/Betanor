@@ -87,6 +87,7 @@ export function EmbeddedMailbox({ canManageSettings, canReadMailbox }: { canMana
   const [draftAttachments, setDraftAttachments] = useState<Attachment[]>([]);
   const [signature, setSignature] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false);
   const [disconnectConfirm, setDisconnectConfirm] = useState(false);
   const [mailSettings, setMailSettings] = useState<MailSettings | null>(null);
 
@@ -383,6 +384,10 @@ export function EmbeddedMailbox({ canManageSettings, canReadMailbox }: { canMana
     <MessageFeedback text={feedback} />
   </section>;
 
+  function renderFolderButton(item: (typeof folders)[number]) {
+    return <button key={item.id} type="button" aria-current={folder === item.id ? "page" : undefined} onClick={() => { setFolder(item.id); setSelected(null); setMobileFoldersOpen(false); void loadMessages(item.id, search); }} className={`flex min-h-10 items-center gap-2 rounded-lg px-3 text-left text-xs font-semibold transition-colors ${folder === item.id ? "bg-white text-[var(--betanor-navy)] shadow-sm" : "text-[var(--betanor-muted)] hover:bg-white hover:text-[var(--betanor-navy)]"}`}><span className="w-4 text-center text-sm">{item.mark}</span><span>{item.label}</span>{item.id === "INBOX" && folderCounts.INBOX ? <span className="ml-auto rounded-full bg-[var(--betanor-blue)] px-2 py-0.5 text-[10px] font-bold text-white">{folderCounts.INBOX}</span> : null}</button>;
+  }
+
   return <section className="overflow-hidden rounded-2xl border border-[var(--betanor-border)] bg-white shadow-[0_16px_48px_-34px_rgba(8,31,64,.5)]">
     <header className="flex flex-col gap-3 border-b border-[var(--betanor-border)] bg-[linear-gradient(115deg,rgba(12,44,82,.04),rgba(255,255,255,0)_64%)] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
       <div className="flex min-w-0 items-center gap-3"><span className="hidden size-10 shrink-0 place-items-center rounded-xl bg-[var(--betanor-navy)] text-lg text-white sm:grid">✉</span><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-[var(--betanor-blue)]">Betanor Mail</p><h1 className="mt-1 truncate text-lg font-semibold text-[var(--betanor-navy)] sm:text-xl">{account.mailbox.email_address}</h1><p className="mt-1 truncate text-[11px] text-[var(--betanor-muted)]">{account.mailbox.status !== "CONNECTED" ? "Mailbox disconnected" : account.mailbox.last_synced_at ? `Last synced ${dateLabel(account.mailbox.last_synced_at)}` : "Mailbox connected · sync to load your messages"}</p></div></div>
@@ -421,9 +426,14 @@ export function EmbeddedMailbox({ canManageSettings, canReadMailbox }: { canMana
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--betanor-border)] bg-white p-4 sm:col-span-2 sm:px-5"><div><p className="text-sm font-semibold text-[var(--betanor-navy)]">{account.mailbox.status === "CONNECTED" ? "Connected as" : "Mailbox address"} {account.mailbox.email_address}</p><p className="mt-1 text-xs text-[var(--betanor-muted)]">Messages already synced remain in Betanor if you disconnect.</p></div>{disconnectConfirm ? <div className="flex items-center gap-2"><span className="text-xs text-[var(--betanor-muted)]">Remove mailbox connection?</span><button onClick={() => void disconnectMailbox()} disabled={busy} className="rounded-lg bg-rose-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Yes, disconnect</button><button onClick={() => setDisconnectConfirm(false)} className="rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold">Cancel</button></div> : account.mailbox.status === "CONNECTED" ? <button onClick={() => setDisconnectConfirm(true)} disabled={busy} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Disconnect mailbox</button> : null}</div>
     </div> : null}
 
+    <div className="border-b border-[var(--betanor-border)] bg-slate-50 p-2 lg:hidden">
+      <button type="button" aria-expanded={mobileFoldersOpen} aria-controls="mobile-mailbox-folders" onClick={() => setMobileFoldersOpen((open) => !open)} className="flex min-h-10 w-full items-center justify-between rounded-lg bg-white px-3 text-left text-xs font-semibold text-[var(--betanor-navy)] shadow-sm"><span className="flex items-center gap-2"><span className="text-sm">{folders.find((item) => item.id === folder)?.mark}</span><span>{folders.find((item) => item.id === folder)?.label}</span>{folder === "INBOX" && folderCounts.INBOX ? <span className="rounded-full bg-[var(--betanor-blue)] px-2 py-0.5 text-[10px] font-bold text-white">{folderCounts.INBOX} unread</span> : null}</span><span aria-hidden="true" className={`transition-transform ${mobileFoldersOpen ? "rotate-180" : ""}`}>⌄</span></button>
+      {mobileFoldersOpen ? <nav id="mobile-mailbox-folders" aria-label="Mailbox folders" className="mt-2 grid grid-cols-2 gap-1 rounded-xl border border-[var(--betanor-border)] bg-white p-2">{folders.map(renderFolderButton)}<Link onClick={() => setMobileFoldersOpen(false)} href="/workspace/emails" className="col-span-2 mt-1 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--betanor-blue)] hover:bg-slate-50">Business email register →</Link></nav> : null}
+    </div>
+
     <div className="grid min-h-[min(70dvh,680px)] lg:h-[min(78dvh,860px)] lg:min-h-[620px] lg:grid-cols-[190px_minmax(280px,370px)_minmax(0,1fr)]">
-      <nav aria-label="Mailbox folders" className="flex gap-1 overflow-x-auto border-b border-[var(--betanor-border)] bg-slate-50 p-2 lg:block lg:space-y-1 lg:border-b-0 lg:border-r lg:p-3">
-        {folders.map((item) => <button key={item.id} onClick={() => { setFolder(item.id); setSelected(null); void loadMessages(item.id, search); }} className={`flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-left text-xs font-semibold transition-colors lg:w-full ${folder === item.id ? "bg-white text-[var(--betanor-navy)] shadow-sm" : "text-[var(--betanor-muted)] hover:bg-white hover:text-[var(--betanor-navy)]"}`}><span className="w-4 text-center text-sm">{item.mark}</span><span>{item.label}</span>{item.id === "INBOX" && folderCounts.INBOX ? <span className="ml-auto rounded-full bg-[var(--betanor-blue)] px-2 py-0.5 text-[10px] font-bold text-white">{folderCounts.INBOX}</span> : null}</button>)}
+      <nav aria-label="Mailbox folders" className="hidden border-b border-[var(--betanor-border)] bg-slate-50 p-2 lg:block lg:space-y-1 lg:border-b-0 lg:border-r lg:p-3">
+        {folders.map(renderFolderButton)}
         <Link href="/workspace/emails" className="mt-4 hidden rounded-lg px-3 py-2 text-xs font-semibold text-[var(--betanor-blue)] hover:bg-white lg:block">Business email register →</Link>
       </nav>
 

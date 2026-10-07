@@ -76,7 +76,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <link rel="stylesheet" href={googleFontsHref(styleSettings)} />
       </head>
       <body className="min-h-full flex flex-col" style={style}>
-        <AppDialogProvider>{children}<CustomerChatWidget /><FieldTooltips /><PwaRuntime /></AppDialogProvider>
+        <AppDialogProvider><PwaRuntime>{children}<CustomerChatWidget /><FieldTooltips /></PwaRuntime></AppDialogProvider>
       </body>
     </html>
   );

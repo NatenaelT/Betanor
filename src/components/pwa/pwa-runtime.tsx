@@ -1,14 +1,30 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
-const DISMISS_KEY = "betanor-pwa-install-dismissed-until";
-const DISMISS_FOR_MS = 30 * 24 * 60 * 60 * 1000;
+type PwaContextValue = {
+  canInstall: boolean;
+  isInstalled: boolean;
+  isIos: boolean;
+  requestInstall: () => Promise<"accepted" | "dismissed" | "manual">;
+};
+
+const PwaContext = createContext<PwaContextValue>({
+  canInstall: false,
+  isInstalled: false,
+  isIos: false,
+  requestInstall: async () => "manual",
+});
+
+export function usePwaInstall() {
+  return useContext(PwaContext);
+}
 
 function isInstalled() {
   return window.matchMedia("(display-mode: standalone)").matches ||
@@ -20,37 +36,22 @@ function isIosDevice() {
     (window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1);
 }
 
-export function PwaRuntime() {
+export function PwaRuntime({ children }: { children: ReactNode }) {
   const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(null);
-  const [ios, setIos] = useState(false);
-  const [installed, setInstalled] = useState(true);
-  const [dismissed, setDismissed] = useState(true);
-  const [iosHelpOpen, setIosHelpOpen] = useState(false);
+  const ios = typeof window !== "undefined" && isIosDevice();
+  const [installed, setInstalled] = useState(() => typeof window !== "undefined" && isInstalled());
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
   const updateAcceptedRef = useRef(false);
 
   useEffect(() => {
-    const initialStateTimer = window.setTimeout(() => {
-      setInstalled(isInstalled());
-      setIos(isIosDevice());
-      try {
-        const dismissedUntil = Number(window.localStorage.getItem(DISMISS_KEY) || 0);
-        setDismissed(dismissedUntil > Date.now());
-      } catch {
-        setDismissed(false);
-      }
-    }, 0);
-
+    let registration: ServiceWorkerRegistration | undefined;
+    const checkWaitingWorker = () => {
+      if (registration?.waiting && navigator.serviceWorker.controller) setWaitingWorker(registration.waiting);
+    };
+    const onControllerChange = () => {
+      if (updateAcceptedRef.current) window.location.reload();
+    };
     if ("serviceWorker" in navigator && window.isSecureContext && process.env.NODE_ENV === "production") {
-      let registration: ServiceWorkerRegistration | undefined;
-      const checkWaitingWorker = () => {
-        if (registration?.waiting && navigator.serviceWorker.controller) {
-          setWaitingWorker(registration.waiting);
-        }
-      };
-      const onControllerChange = () => {
-        if (updateAcceptedRef.current) window.location.reload();
-      };
       void navigator.serviceWorker.register("/sw.js", { scope: "/" }).then((value) => {
         registration = value;
         checkWaitingWorker();
@@ -62,70 +63,46 @@ export function PwaRuntime() {
         });
       }).catch(() => undefined);
       navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
-
-      const onVisibility = () => {
-        if (document.visibilityState === "visible") void registration?.update().catch(() => undefined);
-      };
-      document.addEventListener("visibilitychange", onVisibility);
-
-      const onInstallPrompt = (event: Event) => {
-        event.preventDefault();
-        setInstallEvent(event as InstallPromptEvent);
-      };
-      const onInstalled = () => {
-        setInstalled(true);
-        setInstallEvent(null);
-        setDismissed(true);
-      };
-      window.addEventListener("beforeinstallprompt", onInstallPrompt);
-      window.addEventListener("appinstalled", onInstalled);
-
-      return () => {
-        window.clearTimeout(initialStateTimer);
-        navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
-        document.removeEventListener("visibilitychange", onVisibility);
-        window.removeEventListener("beforeinstallprompt", onInstallPrompt);
-        window.removeEventListener("appinstalled", onInstalled);
-      };
     }
 
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void registration?.update().catch(() => undefined);
+    };
     const onInstallPrompt = (event: Event) => {
       event.preventDefault();
       setInstallEvent(event as InstallPromptEvent);
     };
-    const onInstalled = () => setInstalled(true);
+    const onInstalled = () => {
+      setInstalled(true);
+      setInstallEvent(null);
+    };
+    const onDisplayModeChange = () => setInstalled(isInstalled());
+    const displayMode = window.matchMedia("(display-mode: standalone)");
+    document.addEventListener("visibilitychange", onVisibility);
+    displayMode.addEventListener?.("change", onDisplayModeChange);
     window.addEventListener("beforeinstallprompt", onInstallPrompt);
     window.addEventListener("appinstalled", onInstalled);
+
     return () => {
-      window.clearTimeout(initialStateTimer);
+      navigator.serviceWorker?.removeEventListener("controllerchange", onControllerChange);
+      document.removeEventListener("visibilitychange", onVisibility);
+      displayMode.removeEventListener?.("change", onDisplayModeChange);
       window.removeEventListener("beforeinstallprompt", onInstallPrompt);
       window.removeEventListener("appinstalled", onInstalled);
     };
   }, []);
 
-  function dismissInstall() {
-    setDismissed(true);
-    setIosHelpOpen(false);
+  async function requestInstall(): Promise<"accepted" | "dismissed" | "manual"> {
+    if (!installEvent) return "manual";
+    const currentEvent = installEvent;
+    setInstallEvent(null);
     try {
-      window.localStorage.setItem(DISMISS_KEY, String(Date.now() + DISMISS_FOR_MS));
-    } catch {
-      // The install prompt remains dismissible for the current session.
-    }
-  }
-
-  async function install() {
-    if (!installEvent) {
-      setIosHelpOpen((open) => !open);
-      return;
-    }
-    try {
-      await installEvent.prompt();
-      const choice = await installEvent.userChoice;
-      setInstallEvent(null);
+      await currentEvent.prompt();
+      const choice = await currentEvent.userChoice;
       if (choice.outcome === "accepted") setInstalled(true);
-      else dismissInstall();
+      return choice.outcome;
     } catch {
-      setInstallEvent(null);
+      return "manual";
     }
   }
 
@@ -135,9 +112,8 @@ export function PwaRuntime() {
     waitingWorker.postMessage({ type: "SKIP_WAITING" });
   }
 
-  const showInstall = !installed && !dismissed && Boolean(installEvent || ios);
-
-  return <>
+  return <PwaContext.Provider value={{ canInstall: Boolean(installEvent), isInstalled: installed, isIos: ios, requestInstall }}>
+    {children}
     {waitingWorker ? <div className="pwa-safe-notice z-[70]" role="status" aria-live="polite">
       <div className="mx-auto flex max-w-xl items-center gap-3 rounded-2xl border border-[var(--betanor-border)] bg-white p-3 shadow-xl sm:p-4">
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--betanor-nav-bg)] text-sm font-bold text-white" aria-hidden="true">B</span>
@@ -146,15 +122,5 @@ export function PwaRuntime() {
         <button type="button" onClick={() => setWaitingWorker(null)} aria-label="Dismiss update notice" className="grid size-11 shrink-0 place-items-center rounded-lg text-lg text-[var(--betanor-muted)] hover:bg-slate-100">×</button>
       </div>
     </div> : null}
-    {showInstall ? <div className="pwa-safe-notice z-[55]" role="region" aria-label="Install Betanor">
-      <div className="mx-auto flex max-w-xl items-start gap-3 rounded-2xl border border-[var(--betanor-border)] bg-white p-3 shadow-xl sm:p-4">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--betanor-nav-bg)] text-sm font-bold text-white" aria-hidden="true">B</span>
-        <div className="min-w-0 flex-1"><p className="text-sm font-semibold text-[var(--betanor-navy)]">Install Betanor</p><p className="mt-0.5 text-xs leading-5 text-[var(--betanor-muted)]">Open your secure workspace as an app on this device.</p>
-          {iosHelpOpen ? <p className="mt-2 rounded-lg bg-[var(--betanor-surface)] px-3 py-2 text-xs leading-5 text-[var(--betanor-text)]">In Safari, tap <strong>Share</strong>, then choose <strong>Add to Home Screen</strong>.</p> : null}
-        </div>
-        <button type="button" onClick={() => void install()} className="min-h-11 shrink-0 rounded-lg bg-[var(--betanor-button-bg)] px-3 text-xs font-semibold text-[var(--betanor-button-text)]">{ios ? "How to install" : "Install"}</button>
-        <button type="button" onClick={dismissInstall} aria-label="Dismiss install suggestion" className="grid size-11 shrink-0 place-items-center rounded-lg text-lg text-[var(--betanor-muted)] hover:bg-slate-100">×</button>
-      </div>
-    </div> : null}
-  </>;
+  </PwaContext.Provider>;
 }
