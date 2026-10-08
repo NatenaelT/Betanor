@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState, type FormEvent, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ export type PromptDialogOptions = {
 type DialogContextValue = {
   confirm: (options: ConfirmDialogOptions) => Promise<boolean>;
   prompt: (options: PromptDialogOptions) => Promise<string | null>;
+  toast: (message: string, variant?: "success" | "error" | "info") => void;
 };
 
 type PendingDialog =
@@ -34,9 +35,11 @@ type PendingDialog =
   | { kind: "prompt"; options: PromptDialogOptions; resolve: (value: string | null) => void };
 
 const DialogContext = createContext<DialogContextValue | null>(null);
+type ToastNotice = { id: number; message: string; variant: "success" | "error" | "info" };
 
 export function AppDialogProvider({ children }: { children: ReactNode }) {
   const [dialog, setDialog] = useState<PendingDialog | null>(null);
+  const [toastNotice, setToastNotice] = useState<ToastNotice | null>(null);
   const [promptValue, setPromptValue] = useState("");
   const [promptError, setPromptError] = useState("");
 
@@ -49,6 +52,16 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
     setPromptError("");
     setDialog({ kind: "prompt", options, resolve });
   }), []);
+
+  const toast = useCallback((message: string, variant: ToastNotice["variant"] = "success") => {
+    setToastNotice({ id: Date.now(), message, variant });
+  }, []);
+
+  useEffect(() => {
+    if (!toastNotice) return;
+    const timer = window.setTimeout(() => setToastNotice(null), toastNotice.variant === "error" ? 7000 : 5000);
+    return () => window.clearTimeout(timer);
+  }, [toastNotice]);
 
   const close = useCallback(() => {
     if (!dialog) return;
@@ -71,7 +84,7 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
     setDialog(null);
   }
 
-  const value = { confirm, prompt };
+  const value = { confirm, prompt, toast };
 
   return <DialogContext.Provider value={value}>
     {children}
@@ -98,6 +111,12 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
         </div>
       </form>
     </Modal> : null}
+    {toastNotice ? <div className="pwa-safe-floating fixed bottom-4 right-4 z-[90] w-[min(92vw,24rem)] sm:bottom-6 sm:right-6" role={toastNotice.variant === "error" ? "alert" : "status"} aria-live={toastNotice.variant === "error" ? "assertive" : "polite"} aria-atomic="true">
+      <div className={`flex items-start gap-3 rounded-xl border bg-white px-4 py-3 shadow-xl ${toastNotice.variant === "error" ? "border-rose-200" : toastNotice.variant === "success" ? "border-emerald-200" : "border-blue-200"}`}>
+        <p className={`min-w-0 flex-1 text-sm leading-5 ${toastNotice.variant === "error" ? "text-rose-800" : toastNotice.variant === "success" ? "text-emerald-800" : "text-[var(--betanor-navy)]"}`}>{toastNotice.message}</p>
+        <button type="button" onClick={() => setToastNotice(null)} className="grid size-7 shrink-0 place-items-center rounded-md text-lg text-[var(--betanor-muted)] hover:bg-slate-100" aria-label="Dismiss notification">×</button>
+      </div>
+    </div> : null}
   </DialogContext.Provider>;
 }
 

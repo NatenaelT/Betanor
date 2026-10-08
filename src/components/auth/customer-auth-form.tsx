@@ -86,9 +86,9 @@ export function CustomerAuthForm({ nextPath = "/portal", signUp = false, allowTo
     }
   }
 
-  return <form className="mt-8 space-y-5" onSubmit={submit}>
-    {isSignUp ? <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="customer-full-name">Contact name<Input id="customer-full-name" name="fullName" required minLength={2} className="mt-2" /></label> : null}
-    <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="customer-email">Email address<Input id="customer-email" name="email" type="email" autoComplete="email" required className="mt-2" /></label>
+  return <form className="mt-8 space-y-5" onSubmit={submit} autoComplete="on">
+    {isSignUp ? <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="customer-full-name">Contact name<Input id="customer-full-name" name="fullName" autoComplete="name" required minLength={2} className="mt-2" /></label> : null}
+    <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="customer-email">Email address<Input id="customer-email" name="email" type="email" inputMode="email" autoCapitalize="none" spellCheck={false} autoComplete={isSignUp ? "email" : "username"} required className="mt-2" /></label>
     <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="customer-password">Password<div className="relative mt-2"><Input id="customer-password" name="password" type={showPassword ? "text" : "password"} autoComplete={isSignUp ? "new-password" : "current-password"} minLength={8} required className="pr-16" /><button type="button" className="absolute inset-y-0 right-0 rounded-r-lg px-3 text-xs font-semibold text-[var(--betanor-blue)] hover:bg-blue-50" onClick={() => setShowPassword((visible) => !visible)} aria-controls="customer-password" aria-pressed={showPassword}>{showPassword ? "Hide" : "Show"}</button></div></label>
     {error ? <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
     {message ? <div role="status" className="rounded-lg bg-emerald-50 px-3 py-3 text-sm leading-6 text-emerald-900"><p>{message}</p>{lastSignupEmail && !isSignUp ? null : lastSignupEmail ? <button type="button" className="mt-2 font-semibold text-[var(--betanor-blue)] disabled:opacity-60" onClick={resendConfirmation} disabled={isResending}>{isResending ? "Sending…" : "Resend confirmation email"}</button> : null}</div> : null}

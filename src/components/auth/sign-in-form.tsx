@@ -152,10 +152,10 @@ export function SignInForm({ nextPath, demoAccounts, initialError }: { nextPath:
   }
 
   return (
-    <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+    <form className="mt-8 space-y-5" onSubmit={handleSubmit} autoComplete="on">
       <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="email">
         Email address
-        <Input id="email" name="email" type="email" autoComplete="email" required className="mt-2" value={email} onChange={(event) => setEmail(event.target.value)} />
+        <Input id="email" name="email" type="email" inputMode="email" autoCapitalize="none" spellCheck={false} autoComplete="username" required className="mt-2" value={email} onChange={(event) => setEmail(event.target.value)} />
       </label>
       <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="password">
         Password

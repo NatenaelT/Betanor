@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ type Conversation = { id: string; reference: string; status: string; chat_messag
 type GuestRecord = { reference: string; status: string; message_id: string; sender_kind: string; body: string; created_at: string };
 
 const GUEST_SESSION_KEY = "betanor-chat-session";
+const CustomerAiAssistant = dynamic(() => import("@/components/ai/customer-ai-assistant").then((module) => module.CustomerAiAssistant), { ssr: false, loading: () => <div className="grid min-h-48 place-items-center text-xs text-[var(--betanor-muted)]">Loading Betanor AI…</div> });
 
 export function CustomerChatWidget(props: { customerId?: string | null } = {}) {
   const pathname = usePathname();
@@ -35,10 +37,24 @@ function CustomerChatWidgetContent({ customerId: providedCustomerId }: { custome
   const [online, setOnline] = useState(false);
   const [typing, setTyping] = useState(false);
   const [viewerId, setViewerId] = useState<string | null>(null);
+  const [hasCustomerRole, setHasCustomerRole] = useState(false);
+  const [chatTab, setChatTab] = useState<"assistant" | "live">("live");
 
   useEffect(() => {
     const supabase = createClient();
-    void supabase.auth.getUser().then(({ data }) => setViewerId(data.user?.id ?? null));
+    void supabase.auth.getUser().then(async ({ data }) => {
+      const userId = data.user?.id ?? null;
+      setViewerId(userId);
+      if (!userId) { setHasCustomerRole(false); return; }
+      const { data: roleRows } = await supabase.from("user_roles").select("roles(role_type)").eq("user_id", userId);
+      const isCustomer = (roleRows ?? []).some((row) => {
+        const relation = row.roles as unknown as { role_type?: string } | { role_type?: string }[] | null;
+        const role = Array.isArray(relation) ? relation[0] : relation;
+        return role?.role_type === "customer";
+      });
+      setHasCustomerRole(isCustomer);
+      if (isCustomer) setChatTab("assistant");
+    });
   }, []);
 
   const resolvedCustomerId = providedCustomerId ?? customerId;
@@ -64,19 +80,12 @@ function CustomerChatWidgetContent({ customerId: providedCustomerId }: { custome
       }
     }
 
+    if (!viewerId) return;
     const supabase = createClient();
-    void supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) return;
-      const { data: access } = await supabase
-        .from("customer_portal_access")
-        .select("customer_id")
-        .eq("profile_id", data.user.id)
-        .eq("is_active", true)
-        .limit(1)
-        .maybeSingle();
+    void supabase.from("customer_portal_access").select("customer_id").eq("profile_id", viewerId).eq("is_active", true).limit(1).maybeSingle().then(({ data: access }) => {
       if (access?.customer_id) setCustomerId(access.customer_id);
     });
-  }, [open, providedCustomerId]);
+  }, [open, providedCustomerId, viewerId]);
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -211,11 +220,14 @@ function CustomerChatWidgetContent({ customerId: providedCustomerId }: { custome
   }, [conversation, typing]);
 
   return <div className="pwa-safe-floating fixed z-[60]">
-    <button type="button" aria-expanded={open} aria-label={open ? "Close live chat" : "Open live chat"} onClick={() => setOpen((value) => !value)} className="grid size-14 place-items-center rounded-full bg-[var(--betanor-button-bg)] text-2xl text-[var(--betanor-button-text)] shadow-xl ring-4 ring-white transition-transform hover:scale-105">{open ? "×" : "💬"}</button>
-    {open ? <div className="absolute right-0 bottom-18 flex w-[min(92vw,24rem)] flex-col overflow-hidden rounded-2xl border border-[var(--betanor-border)] bg-white shadow-2xl">
-      <div className="bg-[var(--betanor-navy)] px-4 py-3 text-white"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold">Betanor live support</p><p className="mt-1 text-xs text-blue-100">{statusLabel}</p></div><span className={`size-2 rounded-full ${online || !resolvedCustomerId ? "bg-emerald-400" : "bg-slate-400"}`} aria-label={online ? "Chat online" : "Chat offline"} /></div></div>
-      <div className="max-h-72 space-y-2 overflow-y-auto p-4">{conversation?.chat_messages?.length ? conversation.chat_messages.map((message) => <ChatMessage key={message.id} message={message} viewerId={viewerId} compact onChanged={applyMessageChange} />) : <p className="text-sm leading-6 text-[var(--betanor-muted)]">Send a message and the Betanor team will pick it up from the staff inbox.</p>}</div>
-      {conversation?.status === "closed" || conversation?.status === "resolved" ? <div className="border-t border-[var(--betanor-border)] bg-slate-50 px-4 py-3 text-xs text-[var(--betanor-muted)]">This conversation has been closed. Start a new chat from the message form.</div> : resolvedCustomerId && conversation ? <div className="border-t border-[var(--betanor-border)] p-3"><ChatComposer conversationId={conversation.id} senderKind="customer" placeholder="Write to Betanor…" /></div> : <form onSubmit={send} className="space-y-2 border-t border-[var(--betanor-border)] p-3">{needsGuestIdentity ? <div className="grid gap-2 sm:grid-cols-2"><Input aria-label="Your name" required minLength={2} value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Your name" /><Input aria-label="Your email" type="email" value={guestEmail} onChange={(event) => setGuestEmail(event.target.value)} placeholder="Email (optional)" /></div> : null}<div className="flex items-center gap-2"><Input aria-label="Chat topic" value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="Topic" /><button type="button" className="rounded-lg border border-[var(--betanor-border)] px-2 py-2 text-lg" aria-label="Add emoji" onClick={() => setBody((value) => `${value} 😊`)}>😊</button></div><textarea aria-label="Chat message" required minLength={2} value={body} onChange={(event) => setBody(event.target.value)} rows={3} className="w-full rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-sm" placeholder="How can we help?" />{error ? <p className="text-xs text-[var(--betanor-danger)]">{error}</p> : null}<Button type="submit" size="sm" disabled={loading}>{loading ? "Sending…" : conversation ? "Send message" : "Start chat"}</Button></form>}
+    <button type="button" aria-expanded={open} aria-label={open ? "Close Betanor chat" : "Open Betanor chat"} onClick={() => setOpen((value) => !value)} className="grid size-14 place-items-center rounded-full bg-[var(--betanor-button-bg)] text-2xl text-[var(--betanor-button-text)] shadow-xl ring-4 ring-white transition-transform hover:scale-105">{open ? "×" : "💬"}</button>
+    {open ? <div className="absolute right-0 bottom-18 flex max-h-[min(82dvh,42rem)] w-[min(92vw,24rem)] flex-col overflow-hidden rounded-2xl border border-[var(--betanor-border)] bg-white shadow-2xl">
+      <div className="bg-[var(--betanor-navy)] px-4 py-3 text-white"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold">{hasCustomerRole && chatTab === "assistant" ? "Betanor AI assistant" : "Betanor live support"}</p><p className="mt-1 text-xs text-blue-100">{hasCustomerRole && chatTab === "assistant" ? "Published website information · AI-generated" : statusLabel}</p></div><span className={`size-2 shrink-0 rounded-full ${online || !resolvedCustomerId ? "bg-emerald-400" : "bg-slate-400"}`} aria-label={online ? "Chat online" : "Chat offline"} /></div></div>
+      {hasCustomerRole ? <div role="tablist" aria-label="Betanor chat options" className="flex border-b border-[var(--betanor-border)] bg-slate-50 p-1.5"><button type="button" role="tab" aria-selected={chatTab === "assistant"} onClick={() => setChatTab("assistant")} className={`min-h-9 flex-1 rounded-lg px-2 text-xs font-semibold ${chatTab === "assistant" ? "bg-white text-[var(--betanor-navy)] shadow-sm" : "text-[var(--betanor-muted)] hover:text-[var(--betanor-navy)]"}`}>AI assistant</button><button type="button" role="tab" aria-selected={chatTab === "live"} onClick={() => setChatTab("live")} className={`min-h-9 flex-1 rounded-lg px-2 text-xs font-semibold ${chatTab === "live" ? "bg-white text-[var(--betanor-navy)] shadow-sm" : "text-[var(--betanor-muted)] hover:text-[var(--betanor-navy)]"}`}>Live support</button></div> : null}
+      {hasCustomerRole && chatTab === "assistant" ? <div className="flex min-h-0 flex-1 flex-col"><CustomerAiAssistant /></div> : <>
+        <div className="max-h-72 min-h-36 space-y-2 overflow-y-auto p-4">{conversation?.chat_messages?.length ? conversation.chat_messages.map((message) => <ChatMessage key={message.id} message={message} viewerId={viewerId} compact onChanged={applyMessageChange} />) : <p className="text-sm leading-6 text-[var(--betanor-muted)]">Send a message and the Betanor team will pick it up from the staff inbox.</p>}</div>
+        {conversation?.status === "closed" || conversation?.status === "resolved" ? <div className="border-t border-[var(--betanor-border)] bg-slate-50 px-4 py-3 text-xs text-[var(--betanor-muted)]">This conversation has been closed. Start a new chat from the message form.</div> : resolvedCustomerId && conversation ? <div className="border-t border-[var(--betanor-border)] p-3"><ChatComposer conversationId={conversation.id} senderKind="customer" placeholder="Write to Betanor…" /></div> : <form onSubmit={send} className="space-y-2 border-t border-[var(--betanor-border)] p-3">{needsGuestIdentity ? <div className="grid gap-2 sm:grid-cols-2"><Input aria-label="Your name" autoComplete="name" required minLength={2} value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Your name" /><Input aria-label="Your email" type="email" autoComplete="email" value={guestEmail} onChange={(event) => setGuestEmail(event.target.value)} placeholder="Email (optional)" /></div> : null}<div className="flex items-center gap-2"><Input aria-label="Chat topic" value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="Topic" /><button type="button" className="rounded-lg border border-[var(--betanor-border)] px-2 py-2 text-lg" aria-label="Add emoji" onClick={() => setBody((value) => `${value} 😊`)}>😊</button></div><textarea aria-label="Chat message" required minLength={2} value={body} onChange={(event) => setBody(event.target.value)} rows={3} className="w-full rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-sm" placeholder="How can we help?" />{error ? <p className="text-xs text-[var(--betanor-danger)]">{error}</p> : null}<Button type="submit" size="sm" disabled={loading}>{loading ? "Sending…" : conversation ? "Send message" : "Start chat"}</Button></form>}
+      </>}
     </div> : null}
   </div>;
 }

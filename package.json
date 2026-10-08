@@ -9,8 +9,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.86",
+    "@ai-sdk/react": "^4.0.133",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.116.0",
+    "ai": "^7.0.130",
     "fflate": "0.8.2",
     "imapflow": "^2.2.4",
     "mailparser": "^3.9.34",
