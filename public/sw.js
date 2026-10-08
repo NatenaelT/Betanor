@@ -1,10 +1,14 @@
 const CACHE_PREFIX = "betanor-platform";
-const STATIC_CACHE = `${CACHE_PREFIX}-static-v2`;
+const STATIC_CACHE = `${CACHE_PREFIX}-static-v3`;
 const OFFLINE_PAGE = "/offline.html";
 const PRECACHE = [OFFLINE_PAGE, "/betanor-icon-192.png"];
+let lowDataMode = false;
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(STATIC_CACHE).then((cache) => cache.addAll(PRECACHE)));
+  event.waitUntil(caches.open(STATIC_CACHE).then(async (cache) => {
+    // One missing asset must not prevent the worker from installing.
+    await Promise.allSettled(PRECACHE.map((url) => cache.add(url)));
+  }));
 });
 
 self.addEventListener("activate", (event) => {
@@ -19,6 +23,13 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") void self.skipWaiting();
+  if (event.data?.type === "SET_NETWORK_MODE") {
+    lowDataMode = event.data.lowDataMode === true;
+    event.waitUntil(caches.open(STATIC_CACHE).then((cache) => cache.put(
+      "/__betanor_low_data_mode__",
+      new Response(lowDataMode ? "on" : "off", { headers: { "Content-Type": "text/plain" } }),
+    )));
+  }
   if (event.data?.type === "CLEAR_CACHE") {
     event.waitUntil((async () => {
       const cacheNames = await caches.keys();
@@ -36,13 +47,26 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET" || url.origin !== self.location.origin) return;
 
   if (request.mode === "navigate") {
-    event.respondWith(fetch(request).catch(async () => {
-      const offline = await caches.match(OFFLINE_PAGE);
-      return offline || new Response("You are offline. Reconnect and try again.", {
-        status: 503,
-        headers: { "Content-Type": "text/plain; charset=utf-8" },
-      });
-    }));
+    event.respondWith((async () => {
+      let useLowDataMode = lowDataMode;
+      try {
+        const preference = await (await caches.open(STATIC_CACHE)).match("/__betanor_low_data_mode__");
+        if (preference) useLowDataMode = (await preference.text()) === "on";
+      } catch { /* automatic timeout is the safe fallback */ }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), useLowDataMode ? 35_000 : 50_000);
+      try {
+        return await fetch(request, { signal: controller.signal });
+      } catch {
+        const offline = await caches.match(OFFLINE_PAGE);
+        return offline || new Response("Betanor could not connect. Check your connection and try again.", {
+          status: 503,
+          headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+    })());
     return;
   }
 

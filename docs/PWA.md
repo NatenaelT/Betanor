@@ -20,10 +20,20 @@ Betanor remains one Next.js application for the public site, staff workspace, an
 | --- | --- | --- |
 | Offline page and 192px Betanor logo | Precached during install | Generic, non-sensitive recovery UI |
 | Hashed `/_next/static/` build files | Cache-first, then network and cache successful same-origin responses | Content-addressed scripts/styles/fonts are safe to reuse |
-| Page navigations | Network-only; show the generic offline page on a network failure | Avoid storing personalized SSR, customer, or staff HTML |
+| Page navigations | Network-only with a bounded connection timeout; show the generic offline page on failure | Avoid storing personalized SSR, customer, or staff HTML |
 | API, RSC/data, Supabase, signed URLs, messages, and other private content | Not cached by the service worker | Preserve authorization, freshness, and signed-URL expiry |
 
 The application deliberately does not attempt a full offline database, task, message, payroll, or document sync. Online-only actions must reach their normal server/RLS authorization to succeed. The service worker does not queue requests or report a business action as successful offline.
+
+## Weak-network behavior
+
+- **Settings → Network mode** offers Automatic (default), Low-data mode on, or Low-data mode off. The choice is stored on that device only.
+- Automatic mode detects the browser's Save-Data signal and `2g`/`slow-2g` connection estimate when those browser APIs are available.
+- The worker reduces a navigation's maximum wait to 35 seconds in low-data mode (50 seconds otherwise), then shows the generic retry page. It never caches private HTML or API responses.
+- Low-data mode reduces noncritical polling: mailbox auto-sync moves from every 5 to every 15 minutes, guest-chat refresh from every 45 to every 120 seconds, staff-presence heartbeat from 30 to 90 seconds, and pending Telegram-link checks from 4 to 15 seconds. User-initiated refresh/send actions remain available.
+- Failed installation precache requests for the generic offline page or icon no longer prevent the service worker from installing.
+- Status banners and update notices are in normal page flow; they reserve space instead of covering content.
+- The platform does not queue forms or edits offline. Users must retry a save/send after reconnecting and check its resulting status.
 
 ## Install and update behavior
 
@@ -46,7 +56,8 @@ No web-push subscription or notification credential is created by this PWA found
 - Shared dialogs become bottom sheets with internal scrolling on narrow screens; navigation drawers use dynamic viewport height.
 - Workspace greeting and project cards allow long content to wrap without widening the page.
 - Noren conversation navigation is list-first on mobile; opening a conversation replaces the list with the conversation and a back-to-list control. Desktop retains its two-pane view.
-- Install/update notices sit above the chat affordance and use accessible actions.
+- Install/update notices and toast notifications use normal document flow, so they do not cover page content. The customer-support chat launcher remains a deliberate floating control.
+- Offline/low-data status is announced to assistive technology and reserves page space.
 
 ## Validation checklist
 
@@ -54,7 +65,7 @@ No web-push subscription or notification credential is created by this PWA found
 2. In Chrome/Edge DevTools → Application, verify `/sw.js` is active and page navigations/APIs are absent from Cache Storage.
 3. Install from a Chromium browser and confirm standalone launch reaches Betanor without gaining permissions.
 4. On iOS Safari, use Share → Add to Home Screen; launch from the Home Screen and check notch/home-indicator spacing.
-5. With the worker active, go offline and open a new route: the generic offline page should appear; reconnect and reload.
+5. With the worker active, go offline and open a new route: the generic connection recovery page should appear; reconnect and reload.
 6. Publish a new worker revision: confirm it waits, **Update now** activates it, and no update occurs without the user's choice.
 7. Run `pnpm build` and `pnpm lint`; inspect PWA manifest and static-resource responses over the deployed HTTPS origin.
 

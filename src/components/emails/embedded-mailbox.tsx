@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent, InputHTMLAttributes } from "react";
 
+import { AiProofreadButton } from "@/components/ai/ai-proofread-button";
+import { usePwaInstall } from "@/components/pwa/pwa-runtime";
 import { createClient } from "@/lib/supabase/client";
 
 type Folder = "INBOX" | "SENT" | "DRAFTS" | "ARCHIVE" | "TRASH";
@@ -61,6 +63,7 @@ function addressLine(message: Message) {
 }
 
 export function EmbeddedMailbox({ canManageSettings, canReadMailbox }: { canManageSettings: boolean; canReadMailbox: boolean }) {
+  const { lowDataMode } = usePwaInstall();
   const [account, setAccount] = useState<Account | null>(null);
   const [folder, setFolder] = useState<Folder>("INBOX");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -158,9 +161,9 @@ export function EmbeddedMailbox({ canManageSettings, canReadMailbox }: { canMana
     if (account?.mailbox?.status !== "CONNECTED") return;
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void syncInbox(true);
-    }, 5 * 60 * 1000);
+    }, lowDataMode ? 15 * 60 * 1000 : 5 * 60 * 1000);
     return () => window.clearInterval(timer);
-  }, [account?.mailbox, syncInbox]);
+  }, [account?.mailbox, lowDataMode, syncInbox]);
 
   async function connectMailbox(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -457,8 +460,8 @@ export function EmbeddedMailbox({ canManageSettings, canReadMailbox }: { canMana
           <div className="flex-1 space-y-3 overflow-auto p-4">
             <label className="relative block pr-3 text-xs font-semibold text-[var(--betanor-muted)]">To<span aria-hidden="true" className="absolute top-0 right-0 text-[var(--betanor-danger)]">*</span><input value={to} onChange={(event) => setTo(event.target.value)} className="mt-1 min-h-10 w-full rounded-lg border border-[var(--betanor-field-border)] px-3 text-sm text-[var(--betanor-text)]" placeholder="name@example.com; another@example.com" /><span className="mt-1 block text-[10px] font-normal">Required before sending; drafts can be saved without recipients.</span></label>
             <details open={Boolean(cc || bcc)} className="rounded-lg border border-[var(--betanor-border)]"><summary className="min-h-9 cursor-pointer list-none px-3 py-2 text-xs font-semibold text-[var(--betanor-blue)] [&::-webkit-details-marker]:hidden">Add Cc or Bcc</summary><div className="grid gap-3 border-t border-[var(--betanor-border)] p-3 sm:grid-cols-2"><label className="text-xs font-semibold text-[var(--betanor-muted)]">Cc<input value={cc} onChange={(event) => setCc(event.target.value)} className="mt-1 min-h-9 w-full rounded-lg border border-[var(--betanor-field-border)] px-3 text-sm text-[var(--betanor-text)]" /></label><label className="text-xs font-semibold text-[var(--betanor-muted)]">Bcc<input value={bcc} onChange={(event) => setBcc(event.target.value)} className="mt-1 min-h-9 w-full rounded-lg border border-[var(--betanor-field-border)] px-3 text-sm text-[var(--betanor-text)]" /></label></div></details>
-            <label className="block text-xs font-semibold text-[var(--betanor-muted)]">Subject<input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={250} className="mt-1 min-h-10 w-full rounded-lg border border-[var(--betanor-field-border)] px-3 text-sm text-[var(--betanor-text)]" /></label>
-            <label className="block text-xs font-semibold text-[var(--betanor-muted)]">Message<textarea value={body} onChange={(event) => setBody(event.target.value)} rows={12} maxLength={100000} className="mt-1 min-h-[240px] w-full resize-y rounded-lg border border-[var(--betanor-field-border)] px-3 py-2 text-sm leading-6 text-[var(--betanor-text)]" placeholder="Write your message…" /></label>
+            <div className="space-y-2"><label className="block text-xs font-semibold text-[var(--betanor-muted)]">Subject<input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={250} className="mt-1 min-h-10 w-full rounded-lg border border-[var(--betanor-field-border)] px-3 text-sm text-[var(--betanor-text)]" /></label><AiProofreadButton contentType="email" value={subject} onUse={setSubject} label="Check subject" /></div>
+            <div className="space-y-2"><label className="block text-xs font-semibold text-[var(--betanor-muted)]">Message<textarea value={body} onChange={(event) => setBody(event.target.value)} rows={12} maxLength={100000} className="mt-1 min-h-[240px] w-full resize-y rounded-lg border border-[var(--betanor-field-border)] px-3 py-2 text-sm leading-6 text-[var(--betanor-text)]" placeholder="Write your message…" /></label><AiProofreadButton contentType="email" value={body} onUse={setBody} /></div>
             <div className="flex flex-wrap items-center gap-2"><label className="cursor-pointer rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold text-[var(--betanor-navy)] hover:bg-slate-50">＋ Attach files<input type="file" multiple className="sr-only" onChange={(event) => { const selectedFiles = Array.from(event.target.files ?? []); setFiles((current) => [...current, ...selectedFiles]); event.target.value = ""; }} /></label><span className="text-xs text-[var(--betanor-muted)]">Up to {Math.min(50, Math.floor(account.settings.maxAttachmentBytes / (1024 * 1024)))} MB each, within the combined message limit · resumable upload</span></div>
             {files.length ? <ul className="space-y-1">{files.map((file, index) => <li key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs"><span className="truncate">{file.name} · {friendlyBytes(file.size)}</span><button aria-label={`Remove ${file.name}`} onClick={() => setFiles((current) => current.filter((_, currentIndex) => currentIndex !== index))} className="ml-3 text-rose-700">Remove</button></li>)}</ul> : null}
             {draftAttachments.length ? <ul className="space-y-1">{draftAttachments.map((attachment) => <li key={attachment.id} className="text-xs text-[var(--betanor-muted)]">Attached: {attachment.file_name} · {friendlyBytes(Number(attachment.size_bytes))}</li>)}</ul> : null}

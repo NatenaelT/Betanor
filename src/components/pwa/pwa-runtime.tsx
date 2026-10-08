@@ -8,18 +8,28 @@ type InstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
+export type NetworkMode = "auto" | "on" | "off";
+
 type PwaContextValue = {
   canInstall: boolean;
   isInstalled: boolean;
   isIos: boolean;
+  networkMode: NetworkMode;
+  lowDataMode: boolean;
+  isOffline: boolean;
   requestInstall: () => Promise<"accepted" | "dismissed" | "manual">;
+  setNetworkMode: (mode: NetworkMode) => void;
 };
 
 const PwaContext = createContext<PwaContextValue>({
   canInstall: false,
   isInstalled: false,
   isIos: false,
+  networkMode: "auto",
+  lowDataMode: false,
+  isOffline: false,
   requestInstall: async () => "manual",
+  setNetworkMode: () => undefined,
 });
 
 export function usePwaInstall() {
@@ -36,14 +46,48 @@ function isIosDevice() {
     (window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1);
 }
 
+function getConnection() {
+  if (typeof navigator === "undefined") return undefined;
+  return (navigator as Navigator & { connection?: EventTarget & { saveData?: boolean; effectiveType?: string } }).connection;
+}
+
+function initialNetworkMode(): NetworkMode {
+  if (typeof window === "undefined") return "auto";
+  try {
+    const storedMode = window.localStorage.getItem("betanor-network-mode");
+    if (storedMode === "auto" || storedMode === "on" || storedMode === "off") return storedMode;
+  } catch { /* use automatic detection if device storage is unavailable */ }
+  return "auto";
+}
+
 export function PwaRuntime({ children }: { children: ReactNode }) {
   const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(null);
   const ios = typeof window !== "undefined" && isIosDevice();
   const [installed, setInstalled] = useState(() => typeof window !== "undefined" && isInstalled());
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
+  const [networkMode, setNetworkModeState] = useState<NetworkMode>(initialNetworkMode);
+  const [detectedLowData, setDetectedLowData] = useState(() => {
+    const connection = getConnection();
+    return Boolean(connection?.saveData || /^(slow-2g|2g)$/.test(connection?.effectiveType || ""));
+  });
+  const [offline, setOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
   const updateAcceptedRef = useRef(false);
+  const lowDataMode = networkMode === "on" || (networkMode === "auto" && detectedLowData);
+
+  function setNetworkMode(mode: NetworkMode) {
+    setNetworkModeState(mode);
+    try { window.localStorage.setItem("betanor-network-mode", mode); } catch { /* storage can be unavailable in private mode */ }
+  }
 
   useEffect(() => {
+    const connection = getConnection();
+    const updateNetwork = () => {
+      setOffline(!navigator.onLine);
+      setDetectedLowData(Boolean(connection?.saveData || /^(slow-2g|2g)$/.test(connection?.effectiveType || "")));
+    };
+    window.addEventListener("online", updateNetwork);
+    window.addEventListener("offline", updateNetwork);
+    connection?.addEventListener("change", updateNetwork);
     let registration: ServiceWorkerRegistration | undefined;
     const checkWaitingWorker = () => {
       if (registration?.waiting && navigator.serviceWorker.controller) setWaitingWorker(registration.waiting);
@@ -85,12 +129,22 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
 
     return () => {
       navigator.serviceWorker?.removeEventListener("controllerchange", onControllerChange);
+      window.removeEventListener("online", updateNetwork);
+      window.removeEventListener("offline", updateNetwork);
+      connection?.removeEventListener("change", updateNetwork);
       document.removeEventListener("visibilitychange", onVisibility);
       displayMode.removeEventListener?.("change", onDisplayModeChange);
       window.removeEventListener("beforeinstallprompt", onInstallPrompt);
       window.removeEventListener("appinstalled", onInstalled);
     };
   }, []);
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const sendMode = (worker: ServiceWorker | null) => worker?.postMessage({ type: "SET_NETWORK_MODE", lowDataMode });
+    sendMode(navigator.serviceWorker.controller);
+    void navigator.serviceWorker.ready.then((registration) => sendMode(registration.active)).catch(() => undefined);
+  }, [lowDataMode]);
 
   async function requestInstall(): Promise<"accepted" | "dismissed" | "manual"> {
     if (!installEvent) return "manual";
@@ -112,15 +166,16 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
     waitingWorker.postMessage({ type: "SKIP_WAITING" });
   }
 
-  return <PwaContext.Provider value={{ canInstall: Boolean(installEvent), isInstalled: installed, isIos: ios, requestInstall }}>
-    {children}
-    {waitingWorker ? <div className="pwa-safe-notice z-[70]" role="status" aria-live="polite">
-      <div className="mx-auto flex max-w-xl items-center gap-3 rounded-2xl border border-[var(--betanor-border)] bg-white p-3 shadow-xl sm:p-4">
+  return <PwaContext.Provider value={{ canInstall: Boolean(installEvent), isInstalled: installed, isIos: ios, networkMode, lowDataMode, isOffline: offline, requestInstall, setNetworkMode }}>
+    {offline || lowDataMode || waitingWorker ? <div className="relative z-10 mx-auto w-full max-w-7xl space-y-2 px-3 pt-2 sm:px-5" aria-live="polite">
+      {offline ? <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs leading-5 text-amber-950">You appear to be offline. Betanor keeps this screen available; saving or sending needs a connection.</p> : null}
+      {!offline && lowDataMode ? <p role="status" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs leading-5 text-blue-950">Low-data mode is on. Background traffic is reduced; reconnect or retry if a page takes longer to load.</p> : null}
+      {waitingWorker ? <div className="flex flex-col gap-3 rounded-2xl border border-[var(--betanor-border)] bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:p-4">
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--betanor-nav-bg)] text-sm font-bold text-white" aria-hidden="true">B</span>
         <div className="min-w-0 flex-1"><p className="text-sm font-semibold text-[var(--betanor-navy)]">A new version of Betanor is available.</p><p className="mt-0.5 text-xs text-[var(--betanor-muted)]">Save unfinished changes before refreshing.</p></div>
-        <button type="button" onClick={applyUpdate} className="min-h-11 shrink-0 rounded-lg bg-[var(--betanor-button-bg)] px-3 text-xs font-semibold text-[var(--betanor-button-text)]">Update now</button>
-        <button type="button" onClick={() => setWaitingWorker(null)} aria-label="Dismiss update notice" className="grid size-11 shrink-0 place-items-center rounded-lg text-lg text-[var(--betanor-muted)] hover:bg-slate-100">×</button>
-      </div>
+        <div className="flex shrink-0 gap-2"><button type="button" onClick={applyUpdate} className="min-h-10 rounded-lg bg-[var(--betanor-button-bg)] px-3 text-xs font-semibold text-[var(--betanor-button-text)]">Update now</button><button type="button" onClick={() => setWaitingWorker(null)} aria-label="Dismiss update notice" className="grid min-h-10 min-w-10 place-items-center rounded-lg border border-[var(--betanor-border)] text-lg text-[var(--betanor-muted)] hover:bg-slate-100">×</button></div>
+      </div> : null}
     </div> : null}
+    {children}
   </PwaContext.Provider>;
 }

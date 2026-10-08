@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { usePwaInstall } from "@/components/pwa/pwa-runtime";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAppDialog } from "@/components/ui/app-dialog-provider";
@@ -26,6 +27,7 @@ export function TelegramProfileSettings({ profileId, initialConnection, initialE
   initialEnabled: boolean;
 }) {
   const { confirm } = useAppDialog();
+  const { lowDataMode } = usePwaInstall();
   const [connection, setConnection] = useState<Connection>(initialConnection);
   const [enabled, setEnabled] = useState(initialEnabled);
   const [linkUrl, setLinkUrl] = useState("");
@@ -45,9 +47,9 @@ export function TelegramProfileSettings({ profileId, initialConnection, initialE
             setMessage("Telegram is connected. Choose whether to receive notifications there.");
           }
         });
-    }, 4000);
+    }, lowDataMode ? 15000 : 4000);
     return () => window.clearInterval(timer);
-  }, [connection, linkUrl, profileId]);
+  }, [connection, linkUrl, lowDataMode, profileId]);
 
   async function createLink() {
     setBusy(true); setError(""); setMessage("");

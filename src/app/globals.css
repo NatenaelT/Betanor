@@ -131,14 +131,6 @@ label:not([data-required]):has(+ textarea[required])::after {
   right: max(1rem, env(safe-area-inset-right));
   bottom: calc(1rem + env(safe-area-inset-bottom));
 }
-.pwa-safe-notice {
-  position: fixed;
-  right: max(1rem, env(safe-area-inset-right));
-  bottom: calc(5rem + env(safe-area-inset-bottom));
-  left: max(1rem, env(safe-area-inset-left));
-  pointer-events: none;
-}
-.pwa-safe-notice > * { pointer-events: auto; }
 .mobile-modal-backdrop { padding-bottom: env(safe-area-inset-bottom); }
 .mobile-modal-content { padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
 

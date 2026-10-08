@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { ChatMessage, type ChatMessageRecord } from "@/components/chat/chat-message";
+import { usePwaInstall } from "@/components/pwa/pwa-runtime";
 import { createClient } from "@/lib/supabase/client";
 
 type Message = ChatMessageRecord;
@@ -37,6 +38,7 @@ export function CustomerChatWidget(props: { customerId?: string | null } = {}) {
 }
 
 function CustomerChatWidgetContent({ customerId: providedCustomerId }: { customerId?: string | null }) {
+  const { lowDataMode } = usePwaInstall();
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState("");
   const [guestToken, setGuestToken] = useState<string | null>(null);
@@ -115,8 +117,17 @@ function CustomerChatWidgetContent({ customerId: providedCustomerId }: { custome
       return null;
     }
     const records = (data ?? []) as GuestRecord[];
-    if (!records.length) return null;
     const guestSession = Array.isArray(sessionRows) ? sessionRows[0] as { conversation_id?: string; conversation_status?: string } | undefined : undefined;
+    if (!records.length) {
+      if (!guestSession) {
+        window.sessionStorage.removeItem(GUEST_SESSION_KEY);
+        setGuestToken((current) => current === token ? null : current);
+        activeConversationIdRef.current = null;
+        setConversation(null);
+        setAssistantReplies([]);
+      }
+      return null;
+    }
     const loaded: Conversation = {
       id: guestSession?.conversation_id || `guest:${records[0].reference}`,
       reference: records[0].reference,
@@ -132,12 +143,12 @@ function CustomerChatWidgetContent({ customerId: providedCustomerId }: { custome
   useEffect(() => {
     if (!open) return;
     const firstLoad = window.setTimeout(() => void load(), 0);
-    const timer = isGuest ? window.setInterval(() => void load(), 45000) : null;
+    const timer = isGuest ? window.setInterval(() => void load(), lowDataMode ? 120000 : 45000) : null;
     return () => {
       window.clearTimeout(firstLoad);
       if (timer) window.clearInterval(timer);
     };
-  }, [open, isGuest, load]);
+  }, [open, isGuest, lowDataMode, load]);
 
   useEffect(() => {
     const conversationId = conversation?.id && !conversation.id.startsWith("guest:") ? conversation.id : null;

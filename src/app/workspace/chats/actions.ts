@@ -13,7 +13,7 @@ function field(data: FormData, name: string) {
 async function chatContext(conversationId: string) {
   const supabase = await createClient();
   const access = await resolveWorkspace(supabase);
-  if (!access.userId || !access.workspaceId || !access.isActive || !access.hasStaffRole || !access.permissions.has("chat.manage")) {
+  if (!access.userId || !access.workspaceId || !access.isActive || !access.hasStaffRole || !(access.permissions.has("chat.manage") || access.permissions.has("chat.internal.read"))) {
     redirect("/workspace/chats?error=access");
   }
   const { data: conversation } = await supabase.from("chat_conversations")
@@ -42,7 +42,8 @@ export async function createChatTask(data: FormData) {
   const title = field(data, "title");
   const description = field(data, "description");
   const projectId = field(data, "projectId") || null;
-  const employeeId = field(data, "employeeId") || null;
+  let employeeId = field(data, "employeeId") || null;
+  const assigneeMention = field(data, "assigneeMention");
   const startsOn = field(data, "startsOn") || null;
   const dueOn = field(data, "dueOn") || null;
   const priority = field(data, "priority") || "medium";
@@ -50,8 +51,26 @@ export async function createChatTask(data: FormData) {
     redirect(`/workspace/chats?conversation=${encodeURIComponent(conversationId)}&error=validation`);
   }
   const { supabase, access } = await chatContext(conversationId);
-  if (!access.permissions.has("task.create") || (employeeId && !access.permissions.has("task.assign"))) {
+  if (!access.permissions.has("task.create") || ((employeeId || assigneeMention) && !access.permissions.has("task.assign"))) {
     redirect(`/workspace/chats?conversation=${encodeURIComponent(conversationId)}&error=access`);
+  }
+  if (assigneeMention) {
+    const mention = assigneeMention.replace(/^@/, "").trim();
+    const separatorIndex = mention.lastIndexOf(" · ");
+    const requestedNumber = separatorIndex >= 0 ? mention.slice(separatorIndex + 3).trim() : "";
+    const requestedName = (separatorIndex >= 0 ? mention.slice(0, separatorIndex) : mention).trim().toLocaleLowerCase();
+    const { data: employees } = await supabase.from("employees")
+      .select("id,first_name,last_name,employee_number")
+      .eq("workspace_id", access.workspaceId)
+      .eq("employment_status", "active")
+      .not("profile_id", "is", null)
+      .limit(500);
+    const matches = (employees ?? []).filter((employee) => requestedNumber
+      ? (employee.employee_number?.toLocaleLowerCase() === requestedNumber.toLocaleLowerCase()
+        || (!employee.employee_number && employee.id.toLocaleLowerCase().startsWith(requestedNumber.toLocaleLowerCase())))
+      : `${employee.first_name} ${employee.last_name}`.trim().toLocaleLowerCase() === requestedName);
+    if (matches.length !== 1) redirect(`/workspace/chats?conversation=${encodeURIComponent(conversationId)}&error=assignee`);
+    employeeId = matches[0].id;
   }
   const { data: taskId, error } = await supabase.rpc("create_task_with_assignee", {
     workspace_id_input: access.workspaceId,
@@ -118,4 +137,35 @@ export async function shareChatProject(data: FormData) {
   await postWorkActivity(supabase, access, conversationId, `Shared project: ${project.project_code} · ${project.name}`, { project_id: project.id });
   revalidatePath("/workspace/chats");
   redirect(`/workspace/chats?conversation=${encodeURIComponent(conversationId)}&shared=project`);
+}
+
+export async function startDirectStaffChat(recipientProfileId: string): Promise<{ conversationId?: string; error?: string }> {
+  const recipientId = String(recipientProfileId ?? "").trim();
+  if (!recipientId) return { error: "Choose a staff member first." };
+  const supabase = await createClient();
+  const access = await resolveWorkspace(supabase);
+  if (!access.userId || !access.workspaceId || !access.isActive || !access.hasStaffRole || !(access.permissions.has("chat.manage") || access.permissions.has("chat.internal.read"))) {
+    return { error: "You do not have permission to start an internal chat." };
+  }
+  const { data, error } = await supabase.rpc("start_internal_direct_chat", { recipient_profile_input: recipientId });
+  const result = Array.isArray(data) ? data[0] : data;
+  if (error || !result || typeof result.conversation_id !== "string") {
+    return { error: "The staff conversation could not be started. Check the recipient and try again." };
+  }
+  revalidatePath("/workspace/chats");
+  return { conversationId: result.conversation_id };
+}
+
+export async function setChatConversationState(conversationId: string, action: "archive" | "delete" | "restore"): Promise<{ error?: string }> {
+  const id = String(conversationId ?? "").trim();
+  if (!id) return { error: "Conversation not found." };
+  const supabase = await createClient();
+  const access = await resolveWorkspace(supabase);
+  if (!access.userId || !access.workspaceId || !access.isActive || !access.hasStaffRole) {
+    return { error: "Sign in with an active staff account to manage conversations." };
+  }
+  const { error } = await supabase.rpc("chat_set_conversation_state", { conversation_id_input: id, action_input: action });
+  if (error) return { error: error.message.includes("Ticket conversations") ? "Ticket-linked conversations are retained with their support record; archive them instead." : "This conversation could not be updated. Check your access and try again." };
+  revalidatePath("/workspace/chats");
+  return {};
 }

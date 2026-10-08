@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { usePwaInstall } from "@/components/pwa/pwa-runtime";
 import { createClient } from "@/lib/supabase/client";
 
 type PresenceContextValue = { onlineIds: ReadonlySet<string>; enabled: boolean };
@@ -9,6 +10,7 @@ const PresenceContext = createContext<PresenceContextValue>({ onlineIds: new Set
 const EMPTY_PRESENCE = new Set<string>();
 
 export function StaffPresenceProvider({ workspaceId, userId, enabled, children }: { workspaceId: string | null; userId: string | null; enabled: boolean; children: ReactNode }) {
+  const { lowDataMode } = usePwaInstall();
   const [presence, setPresence] = useState<{ key: string; ids: Set<string> } | null>(null);
   const channelKey = enabled && workspaceId && userId ? `${workspaceId}:${userId}` : null;
 
@@ -33,7 +35,7 @@ export function StaffPresenceProvider({ workspaceId, userId, enabled, children }
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_staff_presence", filter: `workspace_id=eq.${workspaceId}` }, () => void refreshPresence())
       .subscribe();
     void heartbeat();
-    const interval = window.setInterval(() => void heartbeat(), 30_000);
+    const interval = window.setInterval(() => void heartbeat(), lowDataMode ? 90_000 : 30_000);
     const handleVisibility = () => {
       if (document.visibilityState === "visible") void heartbeat();
     };
@@ -43,7 +45,7 @@ export function StaffPresenceProvider({ workspaceId, userId, enabled, children }
       document.removeEventListener("visibilitychange", handleVisibility);
       void supabase.removeChannel(channel);
     };
-  }, [enabled, userId, workspaceId]);
+  }, [enabled, lowDataMode, userId, workspaceId]);
 
   const onlineIds = channelKey && presence?.key === channelKey ? presence.ids : EMPTY_PRESENCE;
   const value = useMemo(() => ({ onlineIds, enabled: Boolean(channelKey) }), [channelKey, onlineIds]);

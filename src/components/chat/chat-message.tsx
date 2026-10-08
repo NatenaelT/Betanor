@@ -37,18 +37,22 @@ export function ChatMessage({ message, viewerId, compact = false, canPin = false
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const mine = Boolean(viewerId && message.sender_profile_id === viewerId);
-  const canChange = mine && !message.deleted_at && ["agent", "customer"].includes(message.sender_kind);
+  const canEdit = mine && !message.deleted_at && ["agent", "customer"].includes(message.sender_kind);
+  const canDelete = !message.deleted_at && (
+    (["agent", "customer"].includes(message.sender_kind) && (mine || canPin))
+    || (["guest", "telegram_group"].includes(message.sender_kind) && canPin)
+  );
   const label = message.sender_kind === "telegram_group" ? message.telegram_sender_label || "Group member" : mine ? "You" : message.sender_kind === "agent" ? "Betanor staff" : message.sender_kind === "customer" ? "Customer" : message.sender_kind === "guest" ? "Guest" : "System";
 
   const pinned = Boolean(message.is_pinned);
 
   async function change(kind: "edit" | "delete") {
-    if (!canChange || busy) return;
+    if ((kind === "edit" ? !canEdit : !canDelete) || busy) return;
     const nextBody = kind === "edit"
       ? await prompt({ title: "Edit message", inputLabel: "Message", initialValue: message.body, submitLabel: "Save changes", validate: (value) => !value.trim() ? "A message cannot be empty." : value.length > (message.telegram_group_chat_id ? 4000 : 10000) ? `Use ${message.telegram_group_chat_id ? "4,000" : "10,000"} characters or fewer.` : null })
       : null;
     if (kind === "edit" && nextBody === null) return;
-    if (kind === "delete" && !await confirm({ title: "Delete message?", description: "The message and its attachment will disappear from the conversation. This cannot be undone.", confirmLabel: "Delete message", destructive: true })) return;
+    if (kind === "delete" && !await confirm({ title: "Delete message?", description: message.sender_kind === "telegram_group" ? "This removes the mirrored entry from Betanor and retains its audit record. It does not delete the original post from Telegram." : "The message will be removed from both sides of the conversation. Its audit record is retained, but the original text and attachment will no longer be visible.", confirmLabel: message.sender_kind === "telegram_group" ? "Remove from Betanor" : "Delete message", destructive: true })) return;
     setBusy(true); setError("");
     const supabase = createClient();
     if (message.sender_kind === "agent" && message.telegram_group_chat_id && message.telegram_group_message_id) {
@@ -104,9 +108,9 @@ export function ChatMessage({ message, viewerId, compact = false, canPin = false
         {mine && !message.deleted_at ? <span>{message.read_at ? "Seen" : "Sent"}</span> : null}
       </div>
       {pinned ? <p className={`mt-1 text-right text-[10px] font-semibold ${mine ? "text-amber-200" : "text-amber-700"}`}>📌 Pinned activity</p> : null}
-      {canChange ? <div className={`mt-1 flex justify-end gap-3 text-[11px] ${mine ? "text-blue-100" : "text-[var(--betanor-muted)]"}`}>
-        <button type="button" disabled={busy} onClick={() => void change("edit")} className="underline-offset-2 hover:underline focus-visible:underline">Edit</button>
-        <button type="button" disabled={busy} onClick={() => void change("delete")} className="underline-offset-2 hover:underline focus-visible:underline">Delete</button>
+      {canEdit || canDelete ? <div className={`mt-1 flex justify-end gap-3 text-[11px] ${mine ? "text-blue-100" : "text-[var(--betanor-muted)]"}`}>
+        {canEdit ? <button type="button" disabled={busy} onClick={() => void change("edit")} className="underline-offset-2 hover:underline focus-visible:underline">Edit</button> : null}
+        {canDelete ? <button type="button" disabled={busy} onClick={() => void change("delete")} className="underline-offset-2 hover:underline focus-visible:underline">Delete</button> : null}
       </div> : null}
       {canPin && !message.deleted_at ? <div className={`mt-1 flex justify-end ${mine ? "text-blue-100" : "text-[var(--betanor-muted)]"}`}><button type="button" disabled={busy} onClick={() => void togglePin()} aria-pressed={pinned} className="min-h-7 rounded-md px-2 text-[10px] font-semibold hover:bg-black/5">{pinned ? "Unpin activity" : "Pin activity"}</button></div> : null}
       {error ? <p role="alert" className="mt-2 rounded bg-rose-100 px-2 py-1 text-xs text-rose-800">{error}</p> : null}

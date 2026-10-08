@@ -7,7 +7,7 @@ import { usePwaInstall } from "@/components/pwa/pwa-runtime";
 const CACHE_PREFIX = "betanor-platform";
 
 export function PwaSettings() {
-  const { canInstall, isInstalled, isIos, requestInstall } = usePwaInstall();
+  const { canInstall, isInstalled, isIos, requestInstall, networkMode, lowDataMode, setNetworkMode } = usePwaInstall();
   const [showIosHelp, setShowIosHelp] = useState(false);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
@@ -62,6 +62,13 @@ export function PwaSettings() {
   }
 
   return <div className="grid gap-4">
+    <section aria-labelledby="network-mode-heading" className="rounded-2xl border border-[var(--betanor-border)] bg-white p-5 sm:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="max-w-2xl"><h2 id="network-mode-heading" className="text-base font-semibold text-[var(--betanor-navy)]">Network mode</h2><p className="mt-1 text-sm leading-5 text-[var(--betanor-muted)]">Reduce background network use on limited or unreliable connections. Betanor never caches private records or claims that offline changes have been saved.</p><p className="mt-2 text-xs font-medium text-[var(--betanor-blue)]">Current: {lowDataMode ? "Low-data mode" : "Standard mode"}</p></div>
+        <label className="grid min-w-48 gap-1.5 text-xs font-semibold text-[var(--betanor-navy)]">Choose a mode<select value={networkMode} onChange={(event) => setNetworkMode(event.target.value as "auto" | "on" | "off")} className="min-h-10 rounded-lg border border-[var(--betanor-field-border)] bg-white px-3 text-sm font-normal"><option value="auto">Automatic (recommended)</option><option value="on">Low-data mode on</option><option value="off">Low-data mode off</option></select></label>
+      </div>
+    </section>
+
     <section aria-labelledby="install-app-heading" className="rounded-2xl border border-[var(--betanor-border)] bg-gradient-to-br from-sky-50 via-white to-amber-50 p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">
