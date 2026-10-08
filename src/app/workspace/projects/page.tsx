@@ -5,6 +5,7 @@ import { ProjectPortfolio, type ProjectPortfolioItem } from "@/components/projec
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldLabel, Input } from "@/components/ui/input";
+import { PageControls } from "@/components/ui/page-controls";
 import { createClient } from "@/lib/supabase/server";
 import { relationArray } from "@/lib/supabase/relations";
 import { resolveWorkspace } from "@/lib/workspace-context";
@@ -17,18 +18,22 @@ const notices: Record<string, string> = {
   create: "The project could not be created. Check customer and contract links and try again.",
 };
 
-export default async function ProjectsPage({ searchParams }: { searchParams: Promise<{ error?: string; deleted?: string }> }) {
-  const [{ error: errorCode, deleted }, supabase] = await Promise.all([searchParams, createClient()]);
+const PAGE_SIZE = 24;
+
+export default async function ProjectsPage({ searchParams }: { searchParams: Promise<{ error?: string; deleted?: string; page?: string }> }) {
+  const [{ error: errorCode, deleted, page: rawPage }, supabase] = await Promise.all([searchParams, createClient()]);
+  const page = Math.max(1, Math.min(5000, Number(rawPage) || 1));
   const access = await resolveWorkspace(supabase);
   const canManageProjects = access.hasStaffRole && access.permissions.has("project.manage");
   const [customers, contracts, employees, departments, projects] = await Promise.all([
-    supabase.from("customers").select("id,name").order("name"),
-    supabase.from("contracts").select("id,title").order("created_at", { ascending: false }),
-    canManageProjects ? supabase.from("employees").select("id,first_name,last_name,employee_number").eq("employment_status", "active").order("first_name") : Promise.resolve({ data: [] }),
-    canManageProjects ? supabase.from("departments").select("id,name").eq("status", "active").order("name") : Promise.resolve({ data: [] }),
-    supabase.from("projects").select("id,project_code,name,status,starts_on,ends_on,budget_amount,currency_code,customers(name),milestones(id),tasks(id)").order("created_at", { ascending: false }).limit(100),
+    canManageProjects ? supabase.from("customers").select("id,name").order("name").limit(200) : Promise.resolve({ data: [] }),
+    canManageProjects ? supabase.from("contracts").select("id,title").order("created_at", { ascending: false }).limit(200) : Promise.resolve({ data: [] }),
+    canManageProjects ? supabase.from("employees").select("id,first_name,last_name,employee_number").eq("employment_status", "active").order("first_name").limit(200) : Promise.resolve({ data: [] }),
+    canManageProjects ? supabase.from("departments").select("id,name").eq("status", "active").order("name").limit(200) : Promise.resolve({ data: [] }),
+    access.workspaceId ? supabase.from("projects").select("id,project_code,name,status,starts_on,ends_on,budget_amount,currency_code,customers(name),milestones(count),tasks(count)").eq("workspace_id", access.workspaceId).order("created_at", { ascending: false }).range((page - 1) * PAGE_SIZE, (page - 1) * PAGE_SIZE + PAGE_SIZE) : Promise.resolve({ data: [], error: null }),
   ]);
-  const projectRows = (projects.data ?? []).map((project): ProjectPortfolioItem => ({
+  const hasNextPage = (projects.data?.length ?? 0) > PAGE_SIZE;
+  const projectRows = (projects.data ?? []).slice(0, PAGE_SIZE).map((project): ProjectPortfolioItem => ({
     id: project.id,
     project_code: project.project_code,
     name: project.name,
@@ -38,8 +43,8 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
     currency_code: project.currency_code || "ETB",
     starts_on: project.starts_on,
     ends_on: project.ends_on,
-    milestone_count: project.milestones?.length ?? 0,
-    task_count: project.tasks?.length ?? 0,
+    milestone_count: Number((project.milestones?.[0] as { count?: number } | undefined)?.count ?? project.milestones?.length ?? 0),
+    task_count: Number((project.tasks?.[0] as { count?: number } | undefined)?.count ?? project.tasks?.length ?? 0),
   }));
 
   return <main className="mx-auto max-w-7xl px-5 py-8 sm:px-6 lg:px-8 lg:py-10">
@@ -70,6 +75,6 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
       </details>
     </Card> : <Card className="mt-7 p-5 text-sm text-[var(--betanor-muted)]">Project creation and administration are available to users with the project.manage permission.</Card>}
 
-    {projects.error ? <Card className="mt-6 p-6 text-sm text-[var(--betanor-danger)]">Projects could not be loaded. Check that your staff role includes Work access.</Card> : <ProjectPortfolio projects={projectRows} />}
+    {projects.error ? <Card className="mt-6 p-6 text-sm text-[var(--betanor-danger)]">Projects could not be loaded. Check that your staff role includes Work access.</Card> : <><ProjectPortfolio projects={projectRows} /><PageControls page={page} hasPrevious={page > 1} hasNext={hasNextPage} hrefForPage={(next) => `/workspace/projects?page=${next}`} /></>}
   </main>;
 }

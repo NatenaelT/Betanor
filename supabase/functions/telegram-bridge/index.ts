@@ -519,6 +519,73 @@ Deno.serve(async (request: Request) => {
       return json(request, { connected: Boolean(group?.is_active), groupHandle: group?.telegram_username ? `@${group.telegram_username}` : null, title: group?.title ?? null });
     }
 
+    if (action === "send_group_reply") {
+      const conversationId = clean(body.conversationId, 36);
+      const rawText = typeof body.message === "string" ? body.message.trim() : "";
+      const text = clean(rawText, 4000);
+      if (!/^[0-9a-f-]{36}$/i.test(conversationId)) return json(request, { error: "Choose a connected Telegram conversation." }, 400);
+      if (!text) return json(request, { error: "Enter a reply before sending." }, 400);
+      if (rawText.length > 4000) return json(request, { error: "Telegram replies are limited to 4,000 characters." }, 400);
+      const { data: allowed, error: permissionError } = await admin.rpc("telegram_user_can_reply_to_group", {
+        profile_id_input: identity.user.id,
+        conversation_id_input: conversationId,
+      });
+      if (permissionError || allowed !== true) return json(request, { error: "You do not have permission to reply to this Telegram group." }, 403);
+      const { data: binding, error: bindingError } = await admin.from("telegram_group_bindings")
+        .select("telegram_chat_id")
+        .eq("conversation_id", conversationId)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (bindingError || !binding) return json(request, { error: "This Telegram group is no longer connected." }, 404);
+      const replyTo = Number(body.replyToTelegramMessageId);
+      const telegramMessage = await telegram("sendMessage", {
+        chat_id: binding.telegram_chat_id,
+        text,
+        ...(Number.isSafeInteger(replyTo) && replyTo > 0 ? { reply_to_message_id: replyTo } : {}),
+        disable_web_page_preview: true,
+      }) as JsonRecord;
+      const telegramMessageId = typeof telegramMessage.message_id === "number" ? telegramMessage.message_id : null;
+      if (!telegramMessageId) return json(request, { error: "Telegram accepted the reply, but did not return its message reference.", delivered: true }, 502);
+      const { data: localMessageId, error: recordError } = await admin.rpc("telegram_record_agent_group_reply", {
+        conversation_id_input: conversationId,
+        actor_profile_id_input: identity.user.id,
+        telegram_message_id_input: telegramMessageId,
+        body_input: text,
+      });
+      if (recordError || !localMessageId) {
+        return json(request, { error: "The reply reached Telegram, but its Betanor conversation record could not be saved. Do not resend it; refresh the conversation.", delivered: true }, 502);
+      }
+      return json(request, { ok: true, messageId: localMessageId });
+    }
+
+    if (action === "edit_group_reply" || action === "delete_group_reply") {
+      const messageId = clean(body.messageId, 36);
+      if (!/^[0-9a-f-]{36}$/i.test(messageId)) return json(request, { error: "The Telegram message reference is invalid." }, 400);
+      const { data: message, error: messageError } = await admin.from("chat_messages")
+        .select("id,conversation_id,sender_profile_id,sender_kind,telegram_group_chat_id,telegram_group_message_id,deleted_at")
+        .eq("id", messageId)
+        .maybeSingle();
+      if (messageError || !message || message.sender_kind !== "agent" || message.sender_profile_id !== identity.user.id || !message.telegram_group_chat_id || !message.telegram_group_message_id || message.deleted_at) {
+        return json(request, { error: "You can only change your own active Betanor replies in a connected Telegram group." }, 403);
+      }
+      const { data: allowed, error: permissionError } = await admin.rpc("telegram_user_can_reply_to_group", {
+        profile_id_input: identity.user.id,
+        conversation_id_input: message.conversation_id,
+      });
+      if (permissionError || allowed !== true) return json(request, { error: "You do not have permission to change replies in this Telegram group." }, 403);
+      const telegramMessageId = Number(message.telegram_group_message_id);
+      if (!Number.isSafeInteger(telegramMessageId) || telegramMessageId < 1) return json(request, { error: "The Telegram message reference is invalid." }, 400);
+      if (action === "edit_group_reply") {
+        const rawText = typeof body.message === "string" ? body.message.trim() : "";
+        const text = clean(rawText, 4000);
+        if (!text || rawText.length > 4000) return json(request, { error: "A message must contain between 1 and 4,000 characters." }, 400);
+        await telegram("editMessageText", { chat_id: message.telegram_group_chat_id, message_id: telegramMessageId, text, disable_web_page_preview: true });
+      } else {
+        await telegram("deleteMessage", { chat_id: message.telegram_group_chat_id, message_id: telegramMessageId });
+      }
+      return json(request, { ok: true });
+    }
+
     return json(request, { error: "Unsupported Telegram action." }, 400);
   } catch (error) {
     const message = errorText(error);

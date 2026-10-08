@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
+import { PageControls } from "@/components/ui/page-controls";
 import { createClient } from "@/lib/supabase/server";
 import { resolveWorkspace } from "@/lib/workspace-context";
 import { SupportRealtimeBridge } from "@/components/support/support-realtime-bridge";
@@ -26,21 +27,24 @@ const views: Record<string,{title:string; table:string; fields:string[]; permiss
 };
 const text = (value: unknown) => value == null ? "—" : typeof value === "object" ? JSON.stringify(value) : String(value);
 
-export default async function SupportSectionPage({params}:{params:Promise<{section:string}>}) {
- const {section}=await params; const view=views[section]; if(!view) notFound();
+const PAGE_SIZE = 50;
+
+export default async function SupportSectionPage({params,searchParams}:{params:Promise<{section:string}>;searchParams:Promise<{page?:string}>}) {
+ const [{section},{page:rawPage}]=await Promise.all([params,searchParams]); const page=Math.max(1,Math.min(5000,Number(rawPage)||1)); const view=views[section]; if(!view) notFound();
  const supabase=await createClient(); const access=await resolveWorkspace(supabase);
  if(!access.workspaceId || !(access.permissions.has("support.read")||access.permissions.has("support.view_all")||access.permissions.has("support.create"))) redirect("/workspace");
  if(view.permission && !access.permissions.has(view.permission) && !access.permissions.has("support.view_all")) redirect("/workspace/support");
  const db=supabase as any;
  const selectFields=view.table==="document_links"?view.fields:["id",...view.fields];
- let query=db.from(view.table).select(selectFields.join(",")).limit(50);
+ let query=db.from(view.table).select(selectFields.join(",")).range((page-1)*PAGE_SIZE,(page-1)*PAGE_SIZE+PAGE_SIZE);
  if(!["support_ticket_events","support_task_links","document_links","support_sessions"].includes(view.table)) query=query.eq("workspace_id",access.workspaceId);
  if(view.table==="support_ticket_events") query=query.order("created_at",{ascending:false});
  else if(view.table==="document_links") query=query.eq("entity_type","support_ticket");
  else query=query.order("created_at",{ascending:false});
  const {data,error}=await query;
- const rows=data??[];
+ const hasNextPage=(data?.length??0)>PAGE_SIZE;
+ const rows=(data??[]).slice(0,PAGE_SIZE);
  const canCreate=section==="tickets"&&access.permissions.has("support.create");
  return <main className="mx-auto max-w-7xl px-5 py-8 sm:px-6 lg:px-8 lg:py-10"><SupportRealtimeBridge workspaceId={access.workspaceId}/><Link href="/workspace/support" className="text-sm font-semibold text-[var(--betanor-blue)]">← Support dashboard</Link><div className="mt-4 flex flex-wrap items-end justify-between gap-3"><div><p className="text-sm font-semibold tracking-[.14em] text-[var(--betanor-blue)] uppercase">RTSL · Managed support</p><h1 className="mt-2 text-3xl font-semibold text-[var(--betanor-navy)]">{view.title}</h1><p className="mt-2 text-sm text-[var(--betanor-muted)]">Showing up to 50 records; customer data is filtered by your support permissions.</p></div>{canCreate?<Link href="/workspace/support/tickets/new" className="rounded-lg bg-[var(--betanor-blue)] px-4 py-2.5 text-sm font-semibold text-white">＋ Create ticket</Link>:null}</div>
- {error?<Card className="mt-6 p-5 text-sm text-amber-800">This list needs the IT Support migration applied before it can load.</Card>:rows.length?<Card className="mt-6 overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr>{view.fields.map(f=><th key={f} className="px-4 py-3">{f.replaceAll("_"," ")}</th>)}</tr></thead><tbody>{rows.map((row:any,i:number)=><tr key={row.id??i} className="border-b last:border-0">{view.fields.map((f,j)=><td key={f} className="max-w-72 px-4 py-3 text-[var(--betanor-text)]">{f==="ticket_number"?<Link className="font-semibold text-[var(--betanor-blue)] hover:underline" href={`/workspace/support/tickets/${row.id}`}>{text(row[f])}</Link>:<span className={j===0?"font-medium":""}>{text(row[f])}</span>}</td>)}</tr>)}</tbody></table></Card>:<Card className="mt-6 p-8 text-center text-sm text-[var(--betanor-muted)]">No {view.title.toLowerCase()} records yet.</Card>}</main>;
+ {error?<Card className="mt-6 p-5 text-sm text-amber-800">This list needs the IT Support migration applied before it can load.</Card>:rows.length?<Card className="mt-6 overflow-hidden"><div role="region" aria-label={`${view.title} table; scroll horizontally on small screens`} tabIndex={0} className="overflow-x-auto overscroll-x-contain touch-pan-x"><table className="w-full min-w-[760px] text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr>{view.fields.map(f=><th key={f} className="px-4 py-3">{f.replaceAll("_"," ")}</th>)}</tr></thead><tbody>{rows.map((row:any,i:number)=><tr key={row.id??i} className="border-b last:border-0">{view.fields.map((f,j)=><td key={f} className="max-w-72 px-4 py-3 text-[var(--betanor-text)]">{f==="ticket_number"?<Link className="font-semibold text-[var(--betanor-blue)] hover:underline" href={`/workspace/support/tickets/${row.id}`}>{text(row[f])}</Link>:<span className={j===0?"font-medium":""}>{text(row[f])}</span>}</td>)}</tr>)}</tbody></table></div><PageControls page={page} hasPrevious={page>1} hasNext={hasNextPage} hrefForPage={(next)=>`/workspace/support/${section}?page=${next}`} /></Card>:<Card className="mt-6 p-8 text-center text-sm text-[var(--betanor-muted)]">No {view.title.toLowerCase()} records yet.</Card>}</main>;
 }

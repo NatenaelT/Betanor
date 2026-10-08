@@ -9,13 +9,15 @@ export function ChatRealtimeBridge({ workspaceId, conversationId }: { workspaceI
   const router = useRouter();
   useEffect(() => {
     const supabase = createClient();
-    let channel = supabase.channel(`betanor-staff-chat-${workspaceId}-${conversationId || "list"}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "chat_conversations", filter: `workspace_id=eq.${workspaceId}` }, () => router.refresh());
-    if (conversationId) {
-      channel = channel
-        .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` }, () => router.refresh())
-        .on("postgres_changes", { event: "*", schema: "public", table: "chat_message_pins", filter: `conversation_id=eq.${conversationId}` }, () => router.refresh());
-    }
+    const channel = supabase.channel(`betanor-staff-chat-${workspaceId}-${conversationId || "list"}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_conversations", filter: `workspace_id=eq.${workspaceId}` }, (payload) => {
+        const row = (payload.eventType === "DELETE" ? payload.old : payload.new) as Record<string, unknown>;
+        // A message in the open thread also updates its conversation timestamp.
+        // The message list handles that event locally, so only refresh the inbox
+        // when a different conversation moves or changes.
+        if (conversationId && row.id === conversationId) return;
+        router.refresh();
+      });
     channel.subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [router, workspaceId, conversationId]);

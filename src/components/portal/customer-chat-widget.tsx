@@ -86,6 +86,8 @@ function CustomerChatWidgetContent({ customerId: providedCustomerId }: { custome
         .select("id,reference,status,chat_messages(id,body,sender_kind,sender_profile_id,is_internal,read_at,edited_at,deleted_at,attachment_name,created_at)")
         .eq("customer_id", resolvedCustomerId)
         .order("updated_at", { ascending: false })
+        .limit(50, { foreignTable: "chat_messages" })
+        .order("created_at", { ascending: true, foreignTable: "chat_messages" })
         .limit(1)
         .maybeSingle();
       if (data) {
@@ -113,32 +115,52 @@ function CustomerChatWidgetContent({ customerId: providedCustomerId }: { custome
   useEffect(() => {
     if (!open) return;
     const firstLoad = window.setTimeout(() => void load(), 0);
-    const supabase = createClient();
-    // Only subscribe after the authenticated customer's conversation is known.
-    // An unfiltered postgres_changes subscription would receive every chat
-    // message in the workspace. Guest chats use the token RPC and a modest
-    // fallback poll because the token does not expose a safe conversation id.
-    const conversationId = conversation?.id && !conversation.id.startsWith("guest:") ? conversation.id : null;
-    const channel = conversationId ? supabase.channel(`betanor-chat-${conversationId}`) : null;
-    if (channel) {
-      channel
-        .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` }, () => void load())
-        .on("presence", { event: "sync" }, () => {
-          const state = channel.presenceState();
-          const entries = Object.values(state).flat() as Array<{ sender_kind?: string; typing?: boolean }>;
-          setTyping(entries.some((entry) => entry.sender_kind === "agent" && entry.typing));
-        })
-        .subscribe((status) => setOnline(status === "SUBSCRIBED"));
-    }
-    const timer = window.setInterval(() => void load(), conversationId ? 30000 : 20000);
+    const timer = resolvedCustomerId ? null : window.setInterval(() => void load(), 45000);
     return () => {
-      window.clearInterval(timer);
       window.clearTimeout(firstLoad);
-      if (channel) void supabase.removeChannel(channel);
+      if (timer) window.clearInterval(timer);
+    };
+  }, [open, resolvedCustomerId, load]);
+
+  useEffect(() => {
+    const conversationId = conversation?.id && !conversation.id.startsWith("guest:") ? conversation.id : null;
+    if (!open || !conversationId) return;
+    const supabase = createClient();
+    const channel = supabase.channel(`betanor-chat-presence-${conversationId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages", filter: `conversation_id=eq.${conversationId}` }, (payload) => {
+        if (payload.eventType === "DELETE") {
+          const removedId = (payload.old as Record<string, unknown>).id;
+          if (typeof removedId === "string") setConversation((current) => current ? { ...current, chat_messages: current.chat_messages?.filter((item) => item.id !== removedId) } : current);
+          return;
+        }
+        const row = payload.new as Partial<Message>;
+        if (typeof row.id !== "string" || typeof row.body !== "string" || row.is_internal) return;
+        setConversation((current) => {
+          if (!current) return current;
+          const currentMessages = current.chat_messages ?? [];
+          const index = currentMessages.findIndex((item) => item.id === row.id);
+          const next = index >= 0
+            ? currentMessages.map((item, itemIndex) => itemIndex === index ? { ...item, ...row } as Message : item)
+            : [...currentMessages, row as Message];
+          return { ...current, chat_messages: next.sort((a, b) => a.created_at.localeCompare(b.created_at)).slice(-50) };
+        });
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_conversations", filter: `id=eq.${conversationId}` }, (payload) => {
+        const row = payload.new as { status?: string };
+        if (row.status) setConversation((current) => current ? { ...current, status: row.status! } : current);
+      })
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState();
+        const entries = Object.values(state).flat() as Array<{ sender_kind?: string; typing?: boolean }>;
+        setTyping(entries.some((entry) => entry.sender_kind === "agent" && entry.typing));
+      })
+      .subscribe((status) => setOnline(status === "SUBSCRIBED"));
+    return () => {
+      void supabase.removeChannel(channel);
       setOnline(false);
       setTyping(false);
     };
-  }, [open, resolvedCustomerId, guestToken, conversation?.id, load]);
+  }, [open, conversation?.id]);
 
   async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -174,6 +196,13 @@ function CustomerChatWidgetContent({ customerId: providedCustomerId }: { custome
     setLoading(false);
   }
 
+  const applyMessageChange = useCallback((change: Partial<Message> & { id: string }) => {
+    setConversation((current) => current ? {
+      ...current,
+      chat_messages: current.chat_messages?.map((message) => message.id === change.id ? { ...message, ...change } : message),
+    } : current);
+  }, []);
+
   const statusLabel = useMemo(() => {
     if (typing) return "Betanor team is typing…";
     if (!conversation) return "Start a conversation with Betanor";
@@ -185,8 +214,8 @@ function CustomerChatWidgetContent({ customerId: providedCustomerId }: { custome
     <button type="button" aria-expanded={open} aria-label={open ? "Close live chat" : "Open live chat"} onClick={() => setOpen((value) => !value)} className="grid size-14 place-items-center rounded-full bg-[var(--betanor-button-bg)] text-2xl text-[var(--betanor-button-text)] shadow-xl ring-4 ring-white transition-transform hover:scale-105">{open ? "×" : "💬"}</button>
     {open ? <div className="absolute right-0 bottom-18 flex w-[min(92vw,24rem)] flex-col overflow-hidden rounded-2xl border border-[var(--betanor-border)] bg-white shadow-2xl">
       <div className="bg-[var(--betanor-navy)] px-4 py-3 text-white"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold">Betanor live support</p><p className="mt-1 text-xs text-blue-100">{statusLabel}</p></div><span className={`size-2 rounded-full ${online || !resolvedCustomerId ? "bg-emerald-400" : "bg-slate-400"}`} aria-label={online ? "Chat online" : "Chat offline"} /></div></div>
-      <div className="max-h-72 space-y-2 overflow-y-auto p-4">{conversation?.chat_messages?.length ? conversation.chat_messages.map((message) => <ChatMessage key={message.id} message={message} viewerId={viewerId} compact onChanged={() => void load()} />) : <p className="text-sm leading-6 text-[var(--betanor-muted)]">Send a message and the Betanor team will pick it up from the staff inbox.</p>}</div>
-      {conversation?.status === "closed" || conversation?.status === "resolved" ? <div className="border-t border-[var(--betanor-border)] bg-slate-50 px-4 py-3 text-xs text-[var(--betanor-muted)]">This conversation has been closed. Start a new chat by refreshing the page.</div> : resolvedCustomerId && conversation ? <div className="border-t border-[var(--betanor-border)] p-3"><ChatComposer conversationId={conversation.id} senderKind="customer" placeholder="Write to Betanor…" onSent={() => void load()} /></div> : <form onSubmit={send} className="space-y-2 border-t border-[var(--betanor-border)] p-3">{needsGuestIdentity ? <div className="grid gap-2 sm:grid-cols-2"><Input aria-label="Your name" required minLength={2} value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Your name" /><Input aria-label="Your email" type="email" value={guestEmail} onChange={(event) => setGuestEmail(event.target.value)} placeholder="Email (optional)" /></div> : null}<div className="flex items-center gap-2"><Input aria-label="Chat topic" value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="Topic" /><button type="button" className="rounded-lg border border-[var(--betanor-border)] px-2 py-2 text-lg" aria-label="Add emoji" onClick={() => setBody((value) => `${value} 😊`)}>😊</button></div><textarea aria-label="Chat message" required minLength={2} value={body} onChange={(event) => setBody(event.target.value)} rows={3} className="w-full rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-sm" placeholder="How can we help?" />{error ? <p className="text-xs text-[var(--betanor-danger)]">{error}</p> : null}<Button type="submit" size="sm" disabled={loading}>{loading ? "Sending…" : conversation ? "Send message" : "Start chat"}</Button></form>}
+      <div className="max-h-72 space-y-2 overflow-y-auto p-4">{conversation?.chat_messages?.length ? conversation.chat_messages.map((message) => <ChatMessage key={message.id} message={message} viewerId={viewerId} compact onChanged={applyMessageChange} />) : <p className="text-sm leading-6 text-[var(--betanor-muted)]">Send a message and the Betanor team will pick it up from the staff inbox.</p>}</div>
+      {conversation?.status === "closed" || conversation?.status === "resolved" ? <div className="border-t border-[var(--betanor-border)] bg-slate-50 px-4 py-3 text-xs text-[var(--betanor-muted)]">This conversation has been closed. Start a new chat from the message form.</div> : resolvedCustomerId && conversation ? <div className="border-t border-[var(--betanor-border)] p-3"><ChatComposer conversationId={conversation.id} senderKind="customer" placeholder="Write to Betanor…" /></div> : <form onSubmit={send} className="space-y-2 border-t border-[var(--betanor-border)] p-3">{needsGuestIdentity ? <div className="grid gap-2 sm:grid-cols-2"><Input aria-label="Your name" required minLength={2} value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Your name" /><Input aria-label="Your email" type="email" value={guestEmail} onChange={(event) => setGuestEmail(event.target.value)} placeholder="Email (optional)" /></div> : null}<div className="flex items-center gap-2"><Input aria-label="Chat topic" value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="Topic" /><button type="button" className="rounded-lg border border-[var(--betanor-border)] px-2 py-2 text-lg" aria-label="Add emoji" onClick={() => setBody((value) => `${value} 😊`)}>😊</button></div><textarea aria-label="Chat message" required minLength={2} value={body} onChange={(event) => setBody(event.target.value)} rows={3} className="w-full rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-sm" placeholder="How can we help?" />{error ? <p className="text-xs text-[var(--betanor-danger)]">{error}</p> : null}<Button type="submit" size="sm" disabled={loading}>{loading ? "Sending…" : conversation ? "Send message" : "Start chat"}</Button></form>}
     </div> : null}
   </div>;
 }

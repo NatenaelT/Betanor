@@ -1,15 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-export function ChatComposer({ conversationId, senderKind, isInternal = false, placeholder = "Write a message…", onSent }: { conversationId: string; senderKind: "agent" | "customer"; isInternal?: boolean; placeholder?: string; onSent?: () => void }) {
-  const router = useRouter();
+export function ChatComposer({ conversationId, senderKind, isInternal = false, placeholder = "Write a message…" }: { conversationId: string; senderKind: "agent" | "customer"; isInternal?: boolean; placeholder?: string }) {
   const [body, setBody] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -64,12 +62,10 @@ export function ChatComposer({ conversationId, senderKind, isInternal = false, p
     await supabase.rpc("mark_chat_messages_read", { conversation_id_input: conversationId });
     setBody(""); setFile(null); setSaving(false);
     if (channelRef.current) void channelRef.current.track({ sender_kind: senderKind, typing: false });
-    onSent?.();
-    router.refresh();
   }
 
   return <form onSubmit={send} className="mt-4 space-y-2">
-    <textarea required={!file} value={body} onChange={(event) => updateBody(event.target.value)} rows={2} className="w-full rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-sm" placeholder={placeholder} />
+    <textarea aria-label={placeholder} required={!file} value={body} onChange={(event) => updateBody(event.target.value)} rows={2} className="w-full rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-sm" placeholder={placeholder} />
     <div className="flex flex-wrap items-center gap-2">
       <button type="button" className="rounded-lg border border-[var(--betanor-border)] px-2 py-1.5 text-lg" aria-label="Add emoji" onClick={() => updateBody(`${body} 😊`)}>😊</button>
       <label className="inline-flex min-h-8 cursor-pointer items-center rounded-lg border border-[var(--betanor-border)] px-3 text-xs font-semibold text-[var(--betanor-navy)] hover:bg-[var(--betanor-surface)]">📎 Attach<input type="file" className="sr-only" accept="image/*,.pdf,.txt,.doc,.docx,.xls,.xlsx,.zip" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label>

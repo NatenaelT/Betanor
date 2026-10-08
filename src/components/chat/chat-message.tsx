@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 import { useAppDialog } from "@/components/ui/app-dialog-provider";
 import { createClient } from "@/lib/supabase/client";
@@ -21,6 +20,8 @@ export type ChatMessageRecord = {
   project_id?: string | null;
   is_pinned?: boolean;
   telegram_sender_label?: string | null;
+  telegram_group_chat_id?: string | null;
+  telegram_group_message_id?: number | string | null;
   created_at: string;
 };
 
@@ -30,9 +31,8 @@ export function ChatMessage({ message, viewerId, compact = false, canPin = false
   compact?: boolean;
   canPin?: boolean;
   conversationId?: string;
-  onChanged?: () => void;
+  onChanged?: (change: Partial<ChatMessageRecord> & { id: string }) => void;
 }) {
-  const router = useRouter();
   const { confirm, prompt } = useAppDialog();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -45,19 +45,35 @@ export function ChatMessage({ message, viewerId, compact = false, canPin = false
   async function change(kind: "edit" | "delete") {
     if (!canChange || busy) return;
     const nextBody = kind === "edit"
-      ? await prompt({ title: "Edit message", inputLabel: "Message", initialValue: message.body, submitLabel: "Save changes", validate: (value) => !value.trim() ? "A message cannot be empty." : value.length > 10000 ? "Use 10,000 characters or fewer." : null })
+      ? await prompt({ title: "Edit message", inputLabel: "Message", initialValue: message.body, submitLabel: "Save changes", validate: (value) => !value.trim() ? "A message cannot be empty." : value.length > (message.telegram_group_chat_id ? 4000 : 10000) ? `Use ${message.telegram_group_chat_id ? "4,000" : "10,000"} characters or fewer.` : null })
       : null;
     if (kind === "edit" && nextBody === null) return;
     if (kind === "delete" && !await confirm({ title: "Delete message?", description: "The message and its attachment will disappear from the conversation. This cannot be undone.", confirmLabel: "Delete message", destructive: true })) return;
     setBusy(true); setError("");
     const supabase = createClient();
+    if (message.sender_kind === "agent" && message.telegram_group_chat_id && message.telegram_group_message_id) {
+      const { data, error: telegramError } = await supabase.functions.invoke("telegram-bridge", {
+        body: {
+          action: kind === "edit" ? "edit_group_reply" : "delete_group_reply",
+          messageId: message.id,
+          ...(kind === "edit" ? { message: nextBody } : {}),
+        },
+      });
+      if (telegramError || data?.ok !== true) {
+        setError(data?.error || telegramError?.message || "Telegram could not update this message.");
+        setBusy(false);
+        return;
+      }
+    }
     const { error: actionError } = kind === "edit"
       ? await supabase.rpc("chat_edit_message", { message_id_input: message.id, body_input: nextBody })
       : await supabase.rpc("chat_delete_message", { message_id_input: message.id });
     setBusy(false);
     if (actionError) { setError(actionError.message); return; }
-    onChanged?.();
-    router.refresh();
+    const changedAt = new Date().toISOString();
+    onChanged?.(kind === "edit"
+      ? { id: message.id, body: nextBody!, edited_at: changedAt }
+      : { id: message.id, body: "Message deleted", deleted_at: changedAt, attachment_name: null, telegram_group_chat_id: null, telegram_group_message_id: null });
   }
 
   async function togglePin() {
@@ -72,8 +88,7 @@ export function ChatMessage({ message, viewerId, compact = false, canPin = false
       : await supabase.from("chat_message_pins").insert({ message_id: message.id, conversation_id: conversationId, pinned_by: identity.user.id });
     setBusy(false);
     if (result.error) { setError("This activity could not be pinned. Check your chat access."); return; }
-    onChanged?.();
-    router.refresh();
+    onChanged?.({ id: message.id, is_pinned: !pinned });
   }
 
   return <article className={`group flex ${mine ? "justify-end" : "justify-start"}`}>
