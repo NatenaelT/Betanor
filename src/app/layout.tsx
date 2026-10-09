@@ -3,7 +3,6 @@ import type { CSSProperties } from "react";
 
 import { CustomerChatWidget } from "@/components/portal/customer-chat-widget";
 import { AppDialogProvider } from "@/components/ui/app-dialog-provider";
-import { FieldTooltips } from "@/components/ui/field-tooltips";
 import { PwaRuntime } from "@/components/pwa/pwa-runtime";
 import { loadCachedStyleSettings } from "@/lib/public-cache";
 import { googleFontsHref } from "@/lib/style-settings";
@@ -76,7 +75,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <link rel="stylesheet" href={googleFontsHref(styleSettings)} />
       </head>
       <body className="min-h-full flex flex-col" style={style}>
-        <AppDialogProvider><PwaRuntime>{children}<CustomerChatWidget /><FieldTooltips /></PwaRuntime></AppDialogProvider>
+        <AppDialogProvider><PwaRuntime>{children}<CustomerChatWidget /></PwaRuntime></AppDialogProvider>
       </body>
     </html>
   );
