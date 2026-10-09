@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 type Hint = { label: string; description: string; x: number; y: number; placement: "top" | "bottom" };
 type Field = HTMLElement;
-const fieldSelector = "input:not([type='hidden']):not([type='submit']):not([type='reset']):not([type='button']):not([type='image']), select, textarea, [contenteditable='true']";
+const fieldSelector = "input:not([type='hidden']):not([type='submit']):not([type='reset']):not([type='button']):not([type='image']):not([type='checkbox']):not([type='radio']), select, textarea, [contenteditable='true']";
 
 const descriptions: Array<[RegExp, string]> = [
   [/e-?mail/i, "Enter an email address you can access; the system may use it for account or record updates."],
@@ -26,7 +26,7 @@ const descriptions: Array<[RegExp, string]> = [
 function controlFor(label: HTMLLabelElement): Field | null {
   const target = label.control ?? (label.htmlFor ? document.getElementById(label.htmlFor) : null);
   if (!(target instanceof HTMLElement)) return null;
-  if (target instanceof HTMLInputElement && ["hidden", "submit", "reset", "button", "image"].includes(target.type)) return null;
+  if (target instanceof HTMLInputElement && ["hidden", "submit", "reset", "button", "image", "checkbox", "radio"].includes(target.type)) return null;
   return target;
 }
 
@@ -58,7 +58,7 @@ function makeInfoButton() {
   button.dataset.fieldInfoTrigger = "true";
   button.setAttribute("aria-label", "Show field information");
   button.setAttribute("aria-expanded", "false");
-  button.className = "ml-1 mt-0.5 inline-grid size-[18px] shrink-0 place-items-center rounded-full border border-[var(--betanor-muted)]/40 text-[10px] font-bold leading-none text-[var(--betanor-muted)] align-middle transition-colors hover:border-[var(--betanor-blue)] hover:text-[var(--betanor-blue)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--betanor-blue)]";
+  button.className = "ml-1 inline-grid size-4 shrink-0 place-items-center self-center rounded-full border border-[var(--betanor-gold)]/70 bg-amber-50 text-[9px] font-bold leading-none text-[var(--betanor-navy)] align-middle transition-colors hover:border-[var(--betanor-blue)] hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--betanor-blue)]";
   button.textContent = "i";
   return button;
 }

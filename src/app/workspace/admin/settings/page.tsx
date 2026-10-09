@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { DepartmentPositionManager } from "@/components/admin/department-position-manager";
 import { NavigationSettingsPanel } from "@/components/admin/navigation-settings-panel";
+import { SettingsAccordion } from "@/components/admin/settings-accordion";
 import { TelegramBotSettings } from "@/components/admin/telegram-bot-settings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -102,18 +103,143 @@ export default async function AdminSettingsPage() {
   ]) : [{ data: null }, { data: [] }, { data: null }, { data: null }, { data: [] }, { data: null }];
   const letter = letterSettings ?? {}; const payroll = payrollSettings ?? {}; const finance = financeSettings ?? {};
   const navigationSettings = normalizeNavigationSettings({ staff: navigationRow?.staff_navigation, customer: navigationRow?.customer_navigation });
-  return <main className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
-    <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><p className="text-sm font-semibold tracking-[0.14em] text-[var(--betanor-blue)] uppercase">System</p><h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--betanor-navy)]">System configuration</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--betanor-muted)]">One workspace-controlled source for legal identity, correspondence, signatories, payroll policy, finance defaults, and organization structure. Optional fields remain optional.</p></div><div className="flex flex-wrap gap-2"><Badge tone="info">Admin protected</Badge>{access.roleCodes.has("SUPER_ADMIN") ? <a href="/workspace/style-guide" className="rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold text-[var(--betanor-navy)] hover:border-[var(--betanor-blue)]">Brand style</a> : null}</div></div>
-    {workspace ? <Card className="mt-8 p-5 sm:p-6"><h2 className="text-lg font-semibold text-[var(--betanor-navy)]">Legal and regional settings</h2><form action={updateWorkspace} className="mt-5 grid gap-4 md:grid-cols-2"><input type="hidden" name="workspaceId" value={workspace.id}/><div><FieldLabel required htmlFor="workspace-name">Display name</FieldLabel><Input id="workspace-name" name="name" defaultValue={workspace.name} required/></div><div><FieldLabel htmlFor="workspace-legal">Legal name</FieldLabel><Input id="workspace-legal" name="legalName" defaultValue={workspace.legal_name ?? ""}/></div><div><FieldLabel htmlFor="workspace-tin">TIN</FieldLabel><Input id="workspace-tin" name="tin" defaultValue={workspace.tin ?? ""}/></div><div><FieldLabel htmlFor="workspace-vat">VAT registration number</FieldLabel><Input id="workspace-vat" name="vat" defaultValue={workspace.vat_registration_number ?? ""}/></div><div><FieldLabel htmlFor="workspace-currency">Currency</FieldLabel><Input id="workspace-currency" name="currencyCode" defaultValue={workspace.currency_code ?? "ETB"}/></div><div><FieldLabel required htmlFor="workspace-timezone">Timezone</FieldLabel><Input id="workspace-timezone" name="timezone" defaultValue={workspace.timezone ?? "Africa/Addis_Ababa"} required/></div><div className="md:col-span-2"><FieldLabel htmlFor="workspace-address">Registered address</FieldLabel><Input id="workspace-address" name="address" defaultValue={workspace.registered_address ?? ""}/></div><div className="md:col-span-2"><Button type="submit">Save legal settings</Button></div></form></Card> : <Card className="mt-8 p-6">No workspace is assigned to this administrator.</Card>}
-    {workspaceId ? <>
-      <NavigationSettingsPanel workspaceId={workspaceId} initialSettings={navigationSettings} />
-      <Card className="mt-8 p-5 sm:p-6"><div><p className="text-xs font-semibold tracking-[0.14em] text-[var(--betanor-blue)] uppercase">Messaging · notifications</p><h2 className="mt-2 text-lg font-semibold text-[var(--betanor-navy)]">Telegram integration</h2><p className="mt-1 text-sm leading-6 text-[var(--betanor-muted)]">Connect the official Betanor bot for staff and customer alerts and permission-scoped chat. Telegram delivery runs asynchronously and does not delay portal messages.</p></div><TelegramBotSettings/></Card>
-      <Card className="mt-8 p-5 sm:p-6"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start"><div><p className="text-xs font-semibold tracking-[0.14em] text-[var(--betanor-blue)] uppercase">Documents · letters</p><h2 className="mt-2 text-lg font-semibold text-[var(--betanor-navy)]">Letterhead, numbering, and default signatory</h2><p className="mt-1 text-sm leading-6 text-[var(--betanor-muted)]">Upload private letterhead, footer, registration stamp, and set defaults used by new correspondence.</p></div><a className="text-sm font-semibold text-[var(--betanor-blue)]" href="/workspace/letters/templates">Manage templates →</a></div><form action={saveLetterSettings} className="mt-5 grid gap-4 md:grid-cols-2" encType="multipart/form-data"><input type="hidden" name="workspaceId" value={workspaceId}/><div><FieldLabel required htmlFor="letter-prefix">Reference prefix</FieldLabel><Input id="letter-prefix" name="referencePrefix" defaultValue={letter.reference_prefix ?? "BTNR/LET"} required/></div><div><FieldLabel htmlFor="default-letter-type">Default letter type</FieldLabel><Input id="default-letter-type" name="defaultLetterType" defaultValue={letter.default_letter_type ?? "General Letter"}/></div><div><FieldLabel htmlFor="default-salutation">Default salutation</FieldLabel><Input id="default-salutation" name="defaultSalutation" defaultValue={letter.default_salutation ?? "Dear Sir/Madam,"}/></div><div><FieldLabel htmlFor="default-closing">Default closing</FieldLabel><Input id="default-closing" name="defaultClosing" defaultValue={letter.default_closing ?? "Yours faithfully,"}/></div><div><FieldLabel htmlFor="default-signatory">Default signatory</FieldLabel><Input id="default-signatory" name="defaultSignatory" defaultValue={letter.default_signatory ?? ""}/></div><div><FieldLabel htmlFor="default-signatory-title">Default signatory title</FieldLabel><Input id="default-signatory-title" name="defaultSignatoryTitle" defaultValue={letter.default_signatory_title ?? ""}/></div><div><FieldLabel htmlFor="letterhead-upload">Letterhead attachment</FieldLabel><Input id="letterhead-upload" name="letterhead" type="file" accept="image/*,.pdf"/></div><div><FieldLabel htmlFor="footer-upload">Footer attachment</FieldLabel><Input id="footer-upload" name="footer" type="file" accept="image/*,.pdf"/></div><div><FieldLabel htmlFor="stamp-upload">Registration stamp attachment</FieldLabel><Input id="stamp-upload" name="stamp" type="file" accept="image/*,.png,.jpg,.jpeg"/></div><div className="flex items-end"><Button type="submit">Save letter settings</Button></div></form>
-      <div className="mt-6 border-t border-[var(--betanor-border)] pt-5"><h3 className="font-semibold text-[var(--betanor-navy)]">Registered signatories</h3><form action={saveSignatory} className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4" encType="multipart/form-data"><input type="hidden" name="workspaceId" value={workspaceId}/><div><FieldLabel required htmlFor="signatory-name">Name</FieldLabel><Input id="signatory-name" name="displayName" required/></div><div><FieldLabel htmlFor="signatory-title">Title</FieldLabel><Input id="signatory-title" name="title" placeholder="Managing Director"/></div><div><FieldLabel htmlFor="signatory-registration">Registration / licence no.</FieldLabel><Input id="signatory-registration" name="registrationNumber"/></div><div><FieldLabel htmlFor="signatory-profile">Linked profile</FieldLabel><select id="signatory-profile" name="profileId" className="min-h-10 w-full rounded-lg border border-[var(--betanor-border)] bg-white px-3 text-sm"><option value="">Not linked</option>{(profiles ?? []).map((profile) => <option key={profile.id} value={profile.id}>{profile.full_name || profile.job_title || profile.id}</option>)}</select></div><div><FieldLabel htmlFor="signature-upload">Signature</FieldLabel><Input id="signature-upload" name="signature" type="file" accept="image/*,.png,.jpg,.jpeg"/></div><div><FieldLabel htmlFor="signatory-stamp-upload">Stamp</FieldLabel><Input id="signatory-stamp-upload" name="stamp" type="file" accept="image/*,.png,.jpg,.jpeg"/></div><label className="flex items-center gap-2 self-end text-sm text-[var(--betanor-text)]"><input defaultChecked name="isActive" type="checkbox"/> Active signatory</label><div className="flex items-end"><Button type="submit">Register signatory</Button></div></form><div className="mt-5 divide-y divide-[var(--betanor-border)]">{(signatories ?? []).map((signatory) => <div className="flex flex-col justify-between gap-3 py-3 sm:flex-row sm:items-center" key={signatory.id}><div><p className="text-sm font-semibold text-[var(--betanor-navy)]">{signatory.display_name}</p><p className="text-xs text-[var(--betanor-muted)]">{signatory.title || "Title not set"}{signatory.registration_number ? ` · ${signatory.registration_number}` : ""}</p></div><div className="flex items-center gap-2"><Badge tone={signatory.is_active ? "success" : "neutral"}>{signatory.is_active ? "Active" : "Inactive"}</Badge><form action={deleteSignatory}><input type="hidden" name="id" value={signatory.id}/><Button size="sm" type="submit" variant="ghost">Delete</Button></form></div></div>)}</div></div></Card>
-      <div className="mt-8 grid gap-8 xl:grid-cols-2"><Card className="p-5 sm:p-6"><h2 className="text-lg font-semibold text-[var(--betanor-navy)]">Payroll policy</h2><p className="mt-1 text-sm text-[var(--betanor-muted)]">Defaults used by payroll generation; statutory rates remain editable for your approved Ethiopian policy.</p><form action={savePayrollSettings} className="mt-5 grid gap-4 sm:grid-cols-2"><input type="hidden" name="workspaceId" value={workspaceId}/><div><FieldLabel required htmlFor="pay-frequency">Pay frequency</FieldLabel><select id="pay-frequency" name="payFrequency" defaultValue={payroll.pay_frequency ?? "monthly"} className="min-h-10 w-full rounded-lg border border-[var(--betanor-border)] bg-white px-3 text-sm" required><option value="monthly">Monthly</option><option value="biweekly">Biweekly</option><option value="weekly">Weekly</option></select></div><div><FieldLabel required htmlFor="payment-day">Payment day</FieldLabel><Input id="payment-day" name="paymentDay" type="number" min="1" max="31" defaultValue={payroll.payment_day ?? 30} required/></div><div><FieldLabel required htmlFor="hours-day">Hours per day</FieldLabel><Input id="hours-day" name="hoursPerDay" type="number" min="1" max="24" step="0.5" defaultValue={payroll.hours_per_day ?? 8} required/></div><div><FieldLabel required htmlFor="working-days">Working days per week</FieldLabel><Input id="working-days" name="workingDays" type="number" min="1" max="7" defaultValue={payroll.working_days_per_week ?? 5} required/></div><div><FieldLabel htmlFor="employee-pension">Employee pension rate (%)</FieldLabel><Input id="employee-pension" name="employeePension" type="number" min="0" max="100" step="0.01" defaultValue={payroll.pension_employee_rate ?? 0}/></div><div><FieldLabel htmlFor="employer-pension">Employer pension rate (%)</FieldLabel><Input id="employer-pension" name="employerPension" type="number" min="0" max="100" step="0.01" defaultValue={payroll.pension_employer_rate ?? 0}/></div><label className="flex items-center gap-2 text-sm text-[var(--betanor-text)] sm:col-span-2"><input defaultChecked={payroll.default_email_payslips !== false} name="emailPayslips" type="checkbox"/> Queue registered employee email notifications when a cycle is published</label><div className="sm:col-span-2"><Button type="submit">Save payroll policy</Button></div></form></Card>
-      <Card className="p-5 sm:p-6"><h2 className="text-lg font-semibold text-[var(--betanor-navy)]">Finance policy</h2><p className="mt-1 text-sm text-[var(--betanor-muted)]">Ethiopian VAT, payment terms, fiscal year, and approval thresholds used across finance screens.</p><form action={saveFinanceSettings} className="mt-5 grid gap-4 sm:grid-cols-2"><input type="hidden" name="workspaceId" value={workspaceId}/><div><FieldLabel required htmlFor="default-vat">Default VAT rate (%)</FieldLabel><Input id="default-vat" name="vatRate" type="number" min="0" max="100" step="0.01" defaultValue={finance.default_vat_rate ?? 15} required/></div><div><FieldLabel required htmlFor="terms-days">Default payment terms (days)</FieldLabel><Input id="terms-days" name="termsDays" type="number" min="0" max="365" defaultValue={finance.default_payment_terms_days ?? 30} required/></div><div><FieldLabel required htmlFor="fiscal-month">Fiscal year start month</FieldLabel><Input id="fiscal-month" name="fiscalMonth" type="number" min="1" max="12" defaultValue={finance.fiscal_year_start_month ?? 7} required/></div><div><FieldLabel required htmlFor="fiscal-day">Fiscal year start day</FieldLabel><Input id="fiscal-day" name="fiscalDay" type="number" min="1" max="31" defaultValue={finance.fiscal_year_start_day ?? 1} required/></div><div><FieldLabel htmlFor="expense-threshold">Expense approval threshold (ETB)</FieldLabel><Input id="expense-threshold" name="expenseThreshold" type="number" min="0" step="0.01" defaultValue={finance.expense_approval_threshold ?? 0}/></div><div><FieldLabel htmlFor="invoice-threshold">Invoice approval threshold (ETB)</FieldLabel><Input id="invoice-threshold" name="invoiceThreshold" type="number" min="0" step="0.01" defaultValue={finance.invoice_approval_threshold ?? 0}/></div><div className="sm:col-span-2"><Button type="submit">Save finance policy</Button></div></form></Card></div>
-      <DepartmentPositionManager />
-    </> : null}
-    <Card className="mt-8 border-blue-100 bg-blue-50/50 p-5"><p className="text-sm font-semibold text-[var(--betanor-navy)]">Configuration principles</p><p className="mt-2 text-sm leading-6 text-[var(--betanor-muted)]">ETB and Africa/Addis_Ababa are safe defaults. Private attachments are stored in the Betanor letters bucket. Submitted letters and published payroll are controlled records and cannot be changed through normal workspace actions.</p></Card>
-  </main>;
+  return (
+    <main className="mx-auto max-w-7xl px-3 py-6 sm:px-6 sm:py-10 lg:px-8">
+      <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
+        <div>
+          <p className="text-sm font-semibold tracking-[0.14em] text-[var(--betanor-blue)] uppercase">System</p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--betanor-navy)]">System configuration</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--betanor-muted)]">Manage company identity, correspondence, navigation, messaging, payroll, finance, and organization settings. Expand only the area you need.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge tone="info">Admin protected</Badge>
+          {access.roleCodes.has("SUPER_ADMIN") ? <a href="/workspace/style-guide" className="rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold text-[var(--betanor-navy)] hover:border-[var(--betanor-blue)]">Brand style</a> : null}
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-3 sm:mt-8">
+        <SettingsAccordion title="Company identity" description="Legal name, registered address, currency, and timezone." defaultOpen>
+          {workspace ? (
+            <Card className="p-4 sm:p-6">
+              <form action={updateWorkspace} className="grid gap-4 md:grid-cols-2">
+                <input type="hidden" name="workspaceId" value={workspace.id} />
+                <div><FieldLabel required htmlFor="workspace-name">Display name</FieldLabel><Input id="workspace-name" name="name" defaultValue={workspace.name} required /></div>
+                <div><FieldLabel htmlFor="workspace-legal">Legal name</FieldLabel><Input id="workspace-legal" name="legalName" defaultValue={workspace.legal_name ?? ""} /></div>
+                <div><FieldLabel htmlFor="workspace-tin">TIN</FieldLabel><Input id="workspace-tin" name="tin" defaultValue={workspace.tin ?? ""} /></div>
+                <div><FieldLabel htmlFor="workspace-vat">VAT registration number</FieldLabel><Input id="workspace-vat" name="vat" defaultValue={workspace.vat_registration_number ?? ""} /></div>
+                <div><FieldLabel htmlFor="workspace-currency">Currency</FieldLabel><Input id="workspace-currency" name="currencyCode" defaultValue={workspace.currency_code ?? "ETB"} /></div>
+                <div><FieldLabel required htmlFor="workspace-timezone">Timezone</FieldLabel><Input id="workspace-timezone" name="timezone" defaultValue={workspace.timezone ?? "Africa/Addis_Ababa"} required /></div>
+                <div className="md:col-span-2"><FieldLabel htmlFor="workspace-address">Registered address</FieldLabel><Input id="workspace-address" name="address" defaultValue={workspace.registered_address ?? ""} /></div>
+                <div className="md:col-span-2"><Button type="submit">Save company identity</Button></div>
+              </form>
+            </Card>
+          ) : <Card className="p-6">No workspace is assigned to this administrator.</Card>}
+        </SettingsAccordion>
+
+        {workspaceId ? <>
+          <SettingsAccordion title="Navigation menus" description="Order and show or hide staff sidebar and customer website links.">
+            <NavigationSettingsPanel workspaceId={workspaceId} initialSettings={navigationSettings} />
+          </SettingsAccordion>
+
+          <SettingsAccordion title="Messaging and notifications" description="Bot connection and notification delivery configuration.">
+            <Card className="p-4 sm:p-6">
+              <p className="text-xs font-semibold tracking-[0.14em] text-[var(--betanor-blue)] uppercase">Messaging · notifications</p>
+              <h2 className="mt-2 text-lg font-semibold text-[var(--betanor-navy)]">Telegram integration</h2>
+              <p className="mt-1 text-sm leading-6 text-[var(--betanor-muted)]">Connect the official Betanor bot for staff and customer alerts and permission-scoped chat. Telegram delivery runs asynchronously and does not delay portal messages.</p>
+              <TelegramBotSettings />
+            </Card>
+          </SettingsAccordion>
+
+          <SettingsAccordion title="Letters and signatories" description="Letterhead, automatic references, registration stamps, and authorized signatories.">
+            <Card className="p-4 sm:p-6">
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                <div>
+                  <p className="text-xs font-semibold tracking-[0.14em] text-[var(--betanor-blue)] uppercase">Documents · letters</p>
+                  <h2 className="mt-2 text-lg font-semibold text-[var(--betanor-navy)]">Letterhead and defaults</h2>
+                  <p className="mt-1 text-sm leading-6 text-[var(--betanor-muted)]">Upload private letterhead, footer, registration stamp, and set defaults used by new correspondence.</p>
+                </div>
+                <a className="text-sm font-semibold text-[var(--betanor-blue)]" href="/workspace/letters/templates">Manage templates →</a>
+              </div>
+              <form action={saveLetterSettings} className="mt-5 grid gap-4 md:grid-cols-2" encType="multipart/form-data">
+                <input type="hidden" name="workspaceId" value={workspaceId} />
+                <div><FieldLabel required htmlFor="letter-prefix">Reference prefix</FieldLabel><Input id="letter-prefix" name="referencePrefix" defaultValue={letter.reference_prefix ?? "BTNR/LET"} required /></div>
+                <div><FieldLabel htmlFor="default-letter-type">Default letter type</FieldLabel><Input id="default-letter-type" name="defaultLetterType" defaultValue={letter.default_letter_type ?? "General Letter"} /></div>
+                <div><FieldLabel htmlFor="default-salutation">Default salutation</FieldLabel><Input id="default-salutation" name="defaultSalutation" defaultValue={letter.default_salutation ?? "Dear Sir/Madam,"} /></div>
+                <div><FieldLabel htmlFor="default-closing">Default closing</FieldLabel><Input id="default-closing" name="defaultClosing" defaultValue={letter.default_closing ?? "Yours faithfully,"} /></div>
+                <div><FieldLabel htmlFor="default-signatory">Default signatory</FieldLabel><Input id="default-signatory" name="defaultSignatory" defaultValue={letter.default_signatory ?? ""} /></div>
+                <div><FieldLabel htmlFor="default-signatory-title">Default signatory title</FieldLabel><Input id="default-signatory-title" name="defaultSignatoryTitle" defaultValue={letter.default_signatory_title ?? ""} /></div>
+                <div><FieldLabel htmlFor="letterhead-upload">Letterhead attachment</FieldLabel><Input id="letterhead-upload" name="letterhead" type="file" accept="image/*,.pdf" /></div>
+                <div><FieldLabel htmlFor="footer-upload">Footer attachment</FieldLabel><Input id="footer-upload" name="footer" type="file" accept="image/*,.pdf" /></div>
+                <div><FieldLabel htmlFor="stamp-upload">Registration stamp attachment</FieldLabel><Input id="stamp-upload" name="stamp" type="file" accept="image/*,.png,.jpg,.jpeg" /></div>
+                <div className="flex items-end"><Button type="submit">Save letter settings</Button></div>
+              </form>
+              <div className="mt-6 border-t border-[var(--betanor-border)] pt-5">
+                <h3 className="font-semibold text-[var(--betanor-navy)]">Registered signatories</h3>
+                <form action={saveSignatory} className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4" encType="multipart/form-data">
+                  <input type="hidden" name="workspaceId" value={workspaceId} />
+                  <div><FieldLabel required htmlFor="signatory-name">Name</FieldLabel><Input id="signatory-name" name="displayName" required /></div>
+                  <div><FieldLabel htmlFor="signatory-title">Title</FieldLabel><Input id="signatory-title" name="title" placeholder="Managing Director" /></div>
+                  <div><FieldLabel htmlFor="signatory-registration">Registration / licence no.</FieldLabel><Input id="signatory-registration" name="registrationNumber" /></div>
+                  <div><FieldLabel htmlFor="signatory-profile">Linked profile</FieldLabel><select id="signatory-profile" name="profileId" className="min-h-10 w-full rounded-lg border border-[var(--betanor-border)] bg-white px-3 text-sm"><option value="">Not linked</option>{(profiles ?? []).map((profile) => <option key={profile.id} value={profile.id}>{profile.full_name || profile.job_title || profile.id}</option>)}</select></div>
+                  <div><FieldLabel htmlFor="signature-upload">Signature</FieldLabel><Input id="signature-upload" name="signature" type="file" accept="image/*,.png,.jpg,.jpeg" /></div>
+                  <div><FieldLabel htmlFor="signatory-stamp-upload">Stamp</FieldLabel><Input id="signatory-stamp-upload" name="stamp" type="file" accept="image/*,.png,.jpg,.jpeg" /></div>
+                  <label className="flex items-center gap-2 self-end text-sm text-[var(--betanor-text)]"><input defaultChecked name="isActive" type="checkbox" /> Active signatory</label>
+                  <div className="flex items-end"><Button type="submit">Register signatory</Button></div>
+                </form>
+                <div className="mt-5 divide-y divide-[var(--betanor-border)]">
+                  {(signatories ?? []).map((signatory) => <div className="flex flex-col justify-between gap-3 py-3 sm:flex-row sm:items-center" key={signatory.id}>
+                    <div><p className="text-sm font-semibold text-[var(--betanor-navy)]">{signatory.display_name}</p><p className="text-xs text-[var(--betanor-muted)]">{signatory.title || "Title not set"}{signatory.registration_number ? ` · ${signatory.registration_number}` : ""}</p></div>
+                    <div className="flex items-center gap-2"><Badge tone={signatory.is_active ? "success" : "neutral"}>{signatory.is_active ? "Active" : "Inactive"}</Badge><form action={deleteSignatory}><input type="hidden" name="id" value={signatory.id} /><Button size="sm" type="submit" variant="ghost">Delete</Button></form></div>
+                  </div>)}
+                </div>
+              </div>
+            </Card>
+          </SettingsAccordion>
+
+          <SettingsAccordion title="Payroll policy" description="Payroll schedule, work week, pension defaults, and payslip delivery.">
+            <Card className="p-4 sm:p-6">
+              <p className="text-sm text-[var(--betanor-muted)]">Defaults used by payroll generation; statutory rates remain editable for your approved Ethiopian policy.</p>
+              <form action={savePayrollSettings} className="mt-5 grid gap-4 sm:grid-cols-2">
+                <input type="hidden" name="workspaceId" value={workspaceId} />
+                <div><FieldLabel required htmlFor="pay-frequency">Pay frequency</FieldLabel><select id="pay-frequency" name="payFrequency" defaultValue={payroll.pay_frequency ?? "monthly"} className="min-h-10 w-full rounded-lg border border-[var(--betanor-border)] bg-white px-3 text-sm" required><option value="monthly">Monthly</option><option value="biweekly">Biweekly</option><option value="weekly">Weekly</option></select></div>
+                <div><FieldLabel required htmlFor="payment-day">Payment day</FieldLabel><Input id="payment-day" name="paymentDay" type="number" min="1" max="31" defaultValue={payroll.payment_day ?? 30} required /></div>
+                <div><FieldLabel required htmlFor="hours-day">Hours per day</FieldLabel><Input id="hours-day" name="hoursPerDay" type="number" min="1" max="24" step="0.5" defaultValue={payroll.hours_per_day ?? 8} required /></div>
+                <div><FieldLabel required htmlFor="working-days">Working days per week</FieldLabel><Input id="working-days" name="workingDays" type="number" min="1" max="7" defaultValue={payroll.working_days_per_week ?? 5} required /></div>
+                <div><FieldLabel htmlFor="employee-pension">Employee pension rate (%)</FieldLabel><Input id="employee-pension" name="employeePension" type="number" min="0" max="100" step="0.01" defaultValue={payroll.pension_employee_rate ?? 0} /></div>
+                <div><FieldLabel htmlFor="employer-pension">Employer pension rate (%)</FieldLabel><Input id="employer-pension" name="employerPension" type="number" min="0" max="100" step="0.01" defaultValue={payroll.pension_employer_rate ?? 0} /></div>
+                <label className="flex items-center gap-2 text-sm text-[var(--betanor-text)] sm:col-span-2"><input defaultChecked={payroll.default_email_payslips !== false} name="emailPayslips" type="checkbox" /> Queue registered employee email notifications when a cycle is published</label>
+                <div className="sm:col-span-2"><Button type="submit">Save payroll policy</Button></div>
+              </form>
+            </Card>
+          </SettingsAccordion>
+
+          <SettingsAccordion title="Finance policy" description="VAT, payment terms, fiscal year, and approval thresholds.">
+            <Card className="p-4 sm:p-6">
+              <p className="text-sm text-[var(--betanor-muted)]">Ethiopian VAT, payment terms, fiscal year, and approval thresholds used across finance screens.</p>
+              <form action={saveFinanceSettings} className="mt-5 grid gap-4 sm:grid-cols-2">
+                <input type="hidden" name="workspaceId" value={workspaceId} />
+                <div><FieldLabel required htmlFor="default-vat">Default VAT rate (%)</FieldLabel><Input id="default-vat" name="vatRate" type="number" min="0" max="100" step="0.01" defaultValue={finance.default_vat_rate ?? 15} required /></div>
+                <div><FieldLabel required htmlFor="terms-days">Default payment terms (days)</FieldLabel><Input id="terms-days" name="termsDays" type="number" min="0" max="365" defaultValue={finance.default_payment_terms_days ?? 30} required /></div>
+                <div><FieldLabel required htmlFor="fiscal-month">Fiscal year start month</FieldLabel><Input id="fiscal-month" name="fiscalMonth" type="number" min="1" max="12" defaultValue={finance.fiscal_year_start_month ?? 7} required /></div>
+                <div><FieldLabel required htmlFor="fiscal-day">Fiscal year start day</FieldLabel><Input id="fiscal-day" name="fiscalDay" type="number" min="1" max="31" defaultValue={finance.fiscal_year_start_day ?? 1} required /></div>
+                <div><FieldLabel htmlFor="expense-threshold">Expense approval threshold (ETB)</FieldLabel><Input id="expense-threshold" name="expenseThreshold" type="number" min="0" step="0.01" defaultValue={finance.expense_approval_threshold ?? 0} /></div>
+                <div><FieldLabel htmlFor="invoice-threshold">Invoice approval threshold (ETB)</FieldLabel><Input id="invoice-threshold" name="invoiceThreshold" type="number" min="0" step="0.01" defaultValue={finance.invoice_approval_threshold ?? 0} /></div>
+                <div className="sm:col-span-2"><Button type="submit">Save finance policy</Button></div>
+              </form>
+            </Card>
+          </SettingsAccordion>
+
+          <SettingsAccordion title="Departments and positions" description="Manage the organization structure used for staffing and access assignment.">
+            <DepartmentPositionManager />
+          </SettingsAccordion>
+        </> : null}
+
+        <SettingsAccordion title="Configuration notes" description="Defaults and record-protection behavior used across the platform.">
+          <Card className="border-blue-100 bg-blue-50/50 p-4 sm:p-5">
+            <p className="text-sm leading-6 text-[var(--betanor-muted)]">ETB and Africa/Addis_Ababa are safe defaults. Private attachments are stored in the Betanor letters bucket. Submitted letters and published payroll are controlled records and cannot be changed through normal workspace actions.</p>
+          </Card>
+        </SettingsAccordion>
+      </div>
+    </main>
+  );
 }
