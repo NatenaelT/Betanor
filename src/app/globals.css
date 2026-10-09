@@ -50,6 +50,31 @@ body {
   color: var(--foreground);
   font-family: var(--betanor-font-family, Aptos, Arial, Helvetica, sans-serif);
   min-height: 100dvh;
+  overflow-x: clip;
+}
+
+main,
+main > *,
+form,
+form > * {
+  min-width: 0;
+}
+
+img,
+video,
+iframe,
+canvas {
+  max-width: 100%;
+}
+
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+table {
+  max-width: 100%;
 }
 
 h1,
@@ -140,6 +165,21 @@ label:not([data-required]):has(+ textarea[required])::after {
   select,
   textarea {
     font-size: 16px !important;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  th,
+  td {
+    overflow-wrap: anywhere;
+  }
+
+  [role="dialog"] {
+    max-width: calc(100vw - 1rem);
   }
 }
 
