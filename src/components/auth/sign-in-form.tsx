@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FieldLabel, Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { destinationForAccount, getAuthSiteUrl } from "@/lib/auth-routing";
 
@@ -153,14 +153,14 @@ export function SignInForm({ nextPath, demoAccounts, initialError }: { nextPath:
 
   return (
     <form className="mt-8 space-y-5" onSubmit={handleSubmit} autoComplete="on">
-      <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="email">
-        Email address
+      <div>
+        <FieldLabel htmlFor="email">Email address</FieldLabel>
         <Input id="email" name="email" type="email" inputMode="email" autoCapitalize="none" spellCheck={false} autoComplete="username" required className="mt-2" value={email} onChange={(event) => setEmail(event.target.value)} />
-      </label>
-      <label className="block text-sm font-semibold text-[var(--betanor-navy)]" htmlFor="password">
-        Password
+      </div>
+      <div>
+        <FieldLabel htmlFor="password">Password</FieldLabel>
         <div className="relative mt-2"><Input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required className="pr-16" value={password} onChange={(event) => setPassword(event.target.value)} /><button type="button" className="absolute inset-y-0 right-0 rounded-r-lg px-3 text-xs font-semibold text-[var(--betanor-blue)] hover:bg-blue-50" onClick={() => setShowPassword((visible) => !visible)} aria-controls="password" aria-pressed={showPassword}>{showPassword ? "Hide" : "Show"}</button></div>
-      </label>
+      </div>
       {error || hashError ? <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{hashError ?? error}</p> : null}
       {status ? <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm leading-6 text-emerald-900">{status}</p> : null}
       <div className="-mt-2 flex flex-wrap items-center justify-between gap-3 text-sm">

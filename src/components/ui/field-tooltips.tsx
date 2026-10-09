@@ -58,9 +58,25 @@ function makeInfoButton() {
   button.dataset.fieldInfoTrigger = "true";
   button.setAttribute("aria-label", "Show field information");
   button.setAttribute("aria-expanded", "false");
-  button.className = "ml-1 inline-grid size-4 shrink-0 place-items-center self-center rounded-full border border-[var(--betanor-gold)]/70 bg-amber-50 text-[9px] font-bold leading-none text-[var(--betanor-navy)] align-middle transition-colors hover:border-[var(--betanor-blue)] hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--betanor-blue)]";
+  button.className = "mt-0.5 inline-grid size-4 shrink-0 place-items-center self-start rounded-full border border-[var(--betanor-gold)]/70 bg-amber-50 text-[9px] font-bold leading-none text-[var(--betanor-navy)] align-middle transition-colors hover:border-[var(--betanor-blue)] hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--betanor-blue)]";
   button.textContent = "i";
   return button;
+}
+
+function addLabelInfoButton(label: HTMLLabelElement) {
+  const next = label.nextElementSibling;
+  if (next instanceof HTMLButtonElement && next.hasAttribute("data-field-info-trigger")) return;
+
+  const parent = label.parentElement;
+  if (!parent) return;
+
+  const row = document.createElement("div");
+  row.className = "flex w-full min-w-0 items-start gap-1";
+  row.dataset.fieldInfoLabelRow = "true";
+  label.style.flex = "1 1 0%";
+  label.style.minWidth = "0";
+  parent.insertBefore(row, label);
+  row.append(label, makeInfoButton());
 }
 
 export function FieldTooltips() {
@@ -107,10 +123,7 @@ export function FieldTooltips() {
       if (nativeTitle) field.removeAttribute("title");
       const labels = field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement ? Array.from(field.labels ?? []) : [];
       if (labels.length) {
-        labels.forEach((label) => {
-          const next = label.nextElementSibling;
-          if (!(next instanceof HTMLButtonElement && next.hasAttribute("data-field-info-trigger"))) label.after(makeInfoButton());
-        });
+        labels.forEach(addLabelInfoButton);
       } else if (field.getClientRects().length && !(field.nextElementSibling instanceof HTMLButtonElement && field.nextElementSibling.hasAttribute("data-field-info-trigger"))) {
         field.after(makeInfoButton());
       }
