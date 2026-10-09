@@ -1,6 +1,5 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { ChatConversationControls } from "@/components/chat/chat-conversation-controls";
@@ -11,25 +10,12 @@ import { ChatWorkActionsPanel } from "@/components/chat/chat-work-actions-panel"
 import { TelegramGroupComposer } from "@/components/chat/telegram-group-composer";
 import { StaffPresenceRoster, type StaffRosterEntry } from "@/components/chat/staff-presence-roster";
 import { Button } from "@/components/ui/button";
+import { startInternalGroupChat } from "@/app/workspace/chats/actions";
 import { createClient } from "@/lib/supabase/server";
 import { resolveWorkspace } from "@/lib/workspace-context";
 
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 50;
-
-async function startInternalChat(data: FormData) {
-  "use server";
-  const topic = String(data.get("topic") ?? "").trim();
-  const body = String(data.get("body") ?? "").trim();
-  const supabase = await createClient();
-  const access = await resolveWorkspace(supabase);
-  if (!access.hasStaffRole || !access.permissions.has("chat.manage")) return;
-  const { data: rows, error } = await supabase.rpc("start_internal_chat", { topic_input: topic || null, message_input: body });
-  const created = Array.isArray(rows) ? rows[0] : rows;
-  if (error || !created?.conversation_id) redirect("/workspace/chats?view=internal&error=create");
-  revalidatePath("/workspace/chats");
-  redirect(`/workspace/chats?view=internal&conversation=${encodeURIComponent(created.conversation_id)}`);
-}
 
 async function updateConversationStatus(data: FormData) {
   "use server";
@@ -113,13 +99,13 @@ export default async function ChatsPage({ searchParams }: { searchParams: Promis
       <span className="mx-1 hidden w-px bg-[var(--betanor-border)] sm:block" aria-hidden="true" />
       {(["inbox", "archived", "trash"] as const).map((item) => <Link key={item} href={viewHref(view, item)} aria-current={folder === item ? "page" : undefined} className={`rounded-full px-3 py-2 text-xs font-semibold capitalize ${folder === item ? "bg-blue-50 text-[var(--betanor-blue)]" : "text-[var(--betanor-muted)] hover:bg-slate-100"}`}>{item === "trash" ? "Trash" : item === "inbox" ? "Inbox" : "Archived"}</Link>)}
     </nav>
-    {canUseInternalChat ? <div className="mb-4"><StaffPresenceRoster staff={staff} currentUserId={access.userId} /></div> : null}
-    {created || shared || noticeError ? <p role={noticeError ? "alert" : "status"} className={`mb-4 rounded-xl border px-4 py-2.5 text-xs ${noticeError ? "border-rose-200 bg-rose-50 text-rose-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>{created === "task" ? "Task created and assigned in this conversation." : created === "project" ? "Project created and linked to this conversation." : shared ? "Work item shared in this conversation." : noticeError === "access" ? "You do not have permission for that action." : noticeError === "validation" ? "Check the required fields and date range." : noticeError === "assignee" ? "Choose an active employee using @name, or enter a unique full name." : noticeError === "share" ? "That record could not be shared because it is unavailable to your role." : noticeError === "create" ? "The internal conversation could not be created." : "The action could not be completed. Please try again."}</p> : null}
+    {canUseInternalChat && view === "internal" ? <div className="mb-4"><StaffPresenceRoster staff={staff} currentUserId={access.userId} /></div> : null}
+    {created || shared || noticeError ? <p role={noticeError ? "alert" : "status"} className={`mb-4 rounded-xl border px-4 py-2.5 text-xs ${noticeError ? "border-rose-200 bg-rose-50 text-rose-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>{created === "task" ? "Task created and assigned in this conversation." : created === "project" ? "Project created and linked to this conversation." : shared ? "Work item shared in this conversation." : noticeError === "access" ? "You do not have permission for that action." : noticeError === "validation" ? "Check the required fields and date range." : noticeError === "assignee" ? "Choose an active employee using @name, or enter a unique full name." : noticeError === "share" ? "That record could not be shared because it is unavailable to your role." : noticeError === "recipients" ? "Select at least one colleague who has access to internal chat." : noticeError === "create" ? "The internal conversation could not be created." : "The action could not be completed. Please try again."}</p> : null}
     <div className="grid min-h-[min(72vh,720px)] overflow-hidden rounded-2xl border border-[var(--betanor-border)] bg-white shadow-[0_15px_50px_-35px_rgba(8,31,64,.45)] lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
       <aside className={`min-w-0 flex min-h-72 flex-col border-b border-[var(--betanor-border)] lg:min-h-0 lg:border-r lg:border-b-0 ${selected ? "hidden lg:flex" : "flex"}`}>
         <div className="border-b border-[var(--betanor-border)] p-3 sm:p-4">
           <form method="get" className="space-y-2"><input type="hidden" name="view" value={view}/><input type="hidden" name="folder" value={folder}/><label htmlFor="chat-search" className="sr-only">Search conversations</label><input id="chat-search" name="q" defaultValue={query} placeholder={view === "support" ? "Search customer conversations…" : "Search staff chats…"} className="min-h-10 w-full rounded-xl border border-[var(--betanor-border)] bg-slate-50 px-3 text-sm outline-none focus:border-[var(--betanor-blue)]" /></form>
-          {canManageChat && view === "internal" && folder === "inbox" ? <details className="mt-3 rounded-xl border border-[var(--betanor-border)]"><summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-[var(--betanor-navy)]">＋ New staff group chat</summary><form action={startInternalChat} className="space-y-2 p-3 pt-0"><input name="topic" placeholder="Optional topic" className="min-h-9 w-full rounded-lg border border-[var(--betanor-border)] px-2 text-sm"/><textarea name="body" rows={2} placeholder="Start with a message (optional)" className="w-full rounded-lg border border-[var(--betanor-border)] px-2 py-1.5 text-sm"/><p className="text-[10px] text-[var(--betanor-muted)]">You can start an empty conversation, then add the first message later.</p><Button type="submit" size="sm">Create conversation</Button></form></details> : null}
+          {canUseInternalChat && view === "internal" && folder === "inbox" ? <details className="mt-3 rounded-xl border border-[var(--betanor-border)]"><summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-[var(--betanor-navy)]">＋ New staff group chat</summary><form action={startInternalGroupChat} className="space-y-3 p-3 pt-0"><div><label htmlFor="new-group-topic" className="mb-1 block text-[11px] font-semibold text-[var(--betanor-navy)]">Group name <span className="font-normal text-[var(--betanor-muted)]">(optional)</span></label><input id="new-group-topic" name="topic" maxLength={180} placeholder="For example: RTSL rollout" className="min-h-9 w-full rounded-lg border border-[var(--betanor-border)] px-2 text-sm"/></div><fieldset><legend className="text-[11px] font-semibold text-[var(--betanor-navy)]">Add staff <span className="font-normal text-[var(--betanor-muted)]">(select at least one)</span></legend><ul className="mt-1 max-h-48 space-y-1 overflow-y-auto rounded-lg border border-[var(--betanor-border)] p-2">{staff.filter((person) => person.profile_id !== access.userId).map((person) => <li key={person.profile_id}><label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs text-[var(--betanor-navy)] hover:bg-slate-50"><input type="checkbox" name="recipientIds" value={person.profile_id}/><span className="min-w-0 flex-1 truncate">{person.display_name}</span><span className="truncate text-[10px] text-[var(--betanor-muted)]">{person.job_title || "Staff"}</span></label></li>)}{staff.filter((person) => person.profile_id !== access.userId).length === 0 ? <li className="px-2 py-2 text-[10px] text-[var(--betanor-muted)]">No other staff with internal chat access are available.</li> : null}</ul><p className="mt-1 text-[10px] leading-4 text-[var(--betanor-muted)]">You are included automatically. Only selected participants and authorized chat managers can see this group.</p></fieldset><textarea name="body" rows={2} maxLength={10000} placeholder="Write a first message (optional)" className="w-full rounded-lg border border-[var(--betanor-border)] px-2 py-1.5 text-sm"/><Button type="submit" size="sm" disabled={staff.filter((person) => person.profile_id !== access.userId).length === 0}>Create group</Button></form></details> : null}
         </div>
         <nav aria-label="Conversations" className="max-h-[70vh] flex-1 overflow-y-auto lg:max-h-[65vh]">
           {error ? <p className="p-4 text-sm text-rose-700">Could not load conversations: {error.message}</p> : visibleConversations.length ? visibleConversations.map((item) => {

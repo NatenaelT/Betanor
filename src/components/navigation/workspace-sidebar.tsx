@@ -6,25 +6,8 @@ import { useState } from "react";
 
 import { BetanorMark } from "@/components/brand/betanor-mark";
 import { Drawer } from "@/components/ui/drawer";
+import { normalizeNavigationSettings, sortStaffSections, type StaffNavigationSettings } from "@/lib/navigation-settings";
 import { cn } from "@/lib/utils";
-
-type NavigationItem = { href?: string; label: string; description?: string; permission?: string | string[]; superAdminOnly?: boolean; staffOnly?: boolean };
-type NavigationSection = { label?: string; items: NavigationItem[] };
-
-const sections: NavigationSection[] = [
-  { label: "Start here", items: [{ href: "/workspace", label: "Modules", description: "Role-assigned work areas" }, { href: "/workspace/overview", label: "Overview", description: "Personal dashboard" }] },
-  { label: "People", items: [{ href: "/workspace/employees", label: "Employees", permission: ["hr.read", "hr.manage", "users.manage"] }, { href: "/workspace/leave", label: "Leave", permission: ["leave.request", "leave.approve"] }, { href: "/workspace/recruitment", label: "Recruitment", permission: "recruitment.manage" }, { href: "/workspace/payslips", label: "Payroll & payslips", permission: ["payroll.read_self", "payroll.manage"] }, { href: "/workspace/kpis", label: "KPIs", permission: ["kpi.read_self", "kpi.read_team", "kpi.configure", "kpi.review"] }] },
-  { label: "Work", items: [{ href: "/workspace/projects", label: "Projects", permission: "project.manage" }, { href: "/workspace/tasks", label: "Tasks", permission: ["task.create", "task.assign", "task.edit"] }, { href: "/workspace/my-work", label: "My work", staffOnly: true }] },
-  { label: "Noren", items: [{ href: "/workspace/noren/inbox", label: "Inbox", description: "Your notifications & assignments", staffOnly: true }, { href: "/workspace/chats", label: "Conversations", permission: ["chat.manage", "chat.internal.read"] }, { href: "/workspace/support", label: "Support chats", permission: ["support.read", "support.view_all"] }] },
-  { label: "Support", items: [{ href: "/workspace/support", label: "IT Support / Managed Support", description: "RTSL service desk", permission: ["support.read", "support.create", "support.view_all", "support.manage_contracts"] }] },
-  { label: "Finance", items: [{ href: "/workspace/finance", label: "Finance overview", description: "Cash, budgets & receivables", permission: ["finance.read", "finance.create", "finance.approve"] }, { href: "/workspace/expenses", label: "Expenses", description: "Requests & approvals", permission: ["expense.request", "finance.read", "finance.create", "finance.approve"] }, { href: "/workspace/budgets", label: "Budgets", description: "Plan by year and project", permission: ["finance.read", "finance.create", "finance.approve"] }, { href: "/workspace/invoices", label: "Invoices & payments", description: "ETB billing ledger", permission: ["finance.read", "finance.create", "finance.approve"] }] },
-  { label: "Documents", items: [{ href: "/workspace/documents", label: "Files & documents", permission: "files.manage" }, { href: "/workspace/letters", label: "Letters", description: "Official correspondence", permission: ["letters.read", "letters.create", "letters.view_department", "letters.view_all"] }] },
-  { label: "Sales & clients", items: [{ href: "/workspace/crm", label: "CRM", permission: ["crm.read", "crm.write"] }, { href: "/workspace/rfqs", label: "RFQs", permission: ["rfq.read", "rfq.write"] }, { href: "/workspace/quotations", label: "Quotations", permission: ["quotation.create", "quotation.edit", "quotation.approve", "quotation.send"] }, { href: "/workspace/contracts", label: "Contracts", permission: ["contract.create", "contract.approve"] }, { href: "/workspace/mailbox", label: "Mailbox", description: "Inbox, signatures & correspondence", permission: ["email.read", "email.read_all", "email.send", "email.manage"] }] },
-  { label: "Tenders", items: [{ href: "/workspace/tenders", label: "Tender management", description: "Proposals, guarantees & submissions", permission: ["tender.read", "tender.create", "tender.view_all"] }] },
-  { label: "System", items: [{ href: "/workspace/cms", label: "Content management", permission: ["cms.read", "cms.write", "cms.publish"] }, { href: "/workspace/products", label: "Product catalogue", permission: ["cms.read", "cms.write", "cms.publish"] }, { href: "/workspace/admin/settings", label: "System configuration", permission: "settings.manage" }, { href: "/workspace/style-guide", label: "Brand style", permission: "style.manage", superAdminOnly: true }] },
-  { label: "Administration", items: [{ href: "/workspace/admin/users", label: "Users & access", description: "Roles and customer portal links", permission: "users.manage" }, { href: "/workspace/admin/departments", label: "Departments & positions", description: "Conditional organization structure", permission: ["hr.manage", "users.manage"] }] },
-  { label: "Help", items: [{ href: "/workspace/help", label: "Help & user manual", description: "Guidance for your assigned role" }, { href: "/workspace/admin/guides", label: "Programmer guide", description: "Download the technical guide", permission: ["users.manage", "settings.manage"] }] },
-];
 
 const iconByLabel: Record<string, string> = {
   Modules: "modules", Overview: "overview", Employees: "employee", Leave: "leave", Recruitment: "recruitment", "Payroll & payslips": "payroll", KPIs: "kpi",
@@ -81,6 +64,7 @@ function NavigationContents({
   permissionCodes = [],
   roleCodes = [],
   hasStaffRole = false,
+  navigationSettings,
 }: {
   close?: () => void;
   collapsed?: boolean;
@@ -88,11 +72,13 @@ function NavigationContents({
   permissionCodes?: string[];
   roleCodes?: string[];
   hasStaffRole?: boolean;
+  navigationSettings?: StaffNavigationSettings;
 }) {
   const pathname = usePathname();
   const isSuperAdmin = roleCodes.includes("SUPER_ADMIN");
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
-  const canSee = (item: NavigationItem) => {
+  const sections = sortStaffSections(normalizeNavigationSettings({ staff: navigationSettings }).staff);
+  const canSee = (item: (typeof sections)[number]["items"][number]) => {
     if (item.staffOnly) return hasStaffRole;
     if (item.superAdminOnly) return isSuperAdmin;
     if (!item.permission || isSuperAdmin) return true;
@@ -112,7 +98,7 @@ function NavigationContents({
       {sections.map((section) => {
         const visibleItems = section.items.filter(canSee);
         if (!visibleItems.length) return null;
-        const groupKey = section.label ?? "Overview";
+        const groupKey = section.id;
         const expanded = openSections[groupKey] ?? true;
         return <section key={groupKey}>
           {section.label && !collapsed ? <button type="button" aria-expanded={expanded} onClick={() => setOpenSections((current) => ({ ...current, [groupKey]: !expanded }))} className="mb-1 flex min-h-9 w-full items-center justify-between px-3 text-[12.5px] font-bold uppercase tracking-[0.11em] text-[var(--betanor-nav-text)]/65 transition-colors hover:text-[var(--betanor-nav-edge)]"><span>{section.label}</span><span aria-hidden="true" className={cn("text-xs transition-transform", expanded ? "rotate-90" : "")}>›</span></button> : null}
@@ -131,16 +117,17 @@ function NavigationContents({
   </div>;
 }
 
-export function WorkspaceSidebar({ permissionCodes = [], roleCodes = [], hasStaffRole = false }: { permissionCodes?: string[]; roleCodes?: string[]; hasStaffRole?: boolean }) {
+export function WorkspaceSidebar({ permissionCodes = [], roleCodes = [], hasStaffRole = false, navigationSettings }: { permissionCodes?: string[]; roleCodes?: string[]; hasStaffRole?: boolean; navigationSettings?: StaffNavigationSettings }) {
   const [isOpen, setIsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const navigationProps = { permissionCodes, roleCodes, hasStaffRole, navigationSettings };
   return <>
     <button aria-controls="workspace-mobile-navigation" aria-expanded={isOpen} aria-label="Open workspace navigation" className="fixed top-3 left-4 z-30 grid size-11 place-items-center rounded-xl border border-[var(--betanor-field-border)] bg-[var(--betanor-header-bg)] text-lg text-[var(--betanor-header-text)] shadow-sm lg:hidden print:hidden" onClick={() => setIsOpen(true)}>☰</button>
     <aside className={cn("sticky top-0 hidden h-screen shrink-0 border-r border-[var(--betanor-nav-text)]/10 bg-[var(--betanor-nav-bg)] text-[var(--betanor-nav-text)] transition-[width] duration-200 lg:block print:hidden", collapsed ? "w-[76px]" : "w-[286px]")}>
-      <NavigationContents collapsed={collapsed} toggleCollapsed={() => setCollapsed((value) => !value)} permissionCodes={permissionCodes} roleCodes={roleCodes} hasStaffRole={hasStaffRole} />
+      <NavigationContents {...navigationProps} collapsed={collapsed} toggleCollapsed={() => setCollapsed((value) => !value)} />
     </aside>
     <Drawer isOpen={isOpen} onClose={() => setIsOpen(false)} title="Workspace navigation">
-      <div className="h-full overflow-hidden" id="workspace-mobile-navigation"><NavigationContents close={() => setIsOpen(false)} permissionCodes={permissionCodes} roleCodes={roleCodes} hasStaffRole={hasStaffRole} /></div>
+      <div className="h-full overflow-hidden" id="workspace-mobile-navigation"><NavigationContents {...navigationProps} close={() => setIsOpen(false)} /></div>
     </Drawer>
   </>;
 }

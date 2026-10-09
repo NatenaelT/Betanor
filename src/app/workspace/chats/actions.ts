@@ -156,6 +156,31 @@ export async function startDirectStaffChat(recipientProfileId: string): Promise<
   return { conversationId: result.conversation_id };
 }
 
+export async function startInternalGroupChat(data: FormData): Promise<never> {
+  const topic = field(data, "topic").slice(0, 180);
+  const body = field(data, "body").slice(0, 10000);
+  const rawRecipients = data.getAll("recipientIds").map((value) => String(value).trim());
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (rawRecipients.length < 1 || rawRecipients.length > 50 || rawRecipients.some((id) => !uuidPattern.test(id))) {
+    redirect("/workspace/chats?view=internal&error=recipients");
+  }
+  const recipientIds = [...new Set(rawRecipients)];
+  const supabase = await createClient();
+  const access = await resolveWorkspace(supabase);
+  if (!access.userId || !access.workspaceId || !access.isActive || !access.hasStaffRole || !(access.permissions.has("chat.manage") || access.permissions.has("chat.internal.read"))) {
+    redirect("/workspace/chats?view=internal&error=access");
+  }
+  const { data: rows, error } = await supabase.rpc("start_internal_group_chat", {
+    topic_input: topic || null,
+    message_input: body,
+    recipient_profile_ids_input: recipientIds,
+  });
+  const created = Array.isArray(rows) ? rows[0] : rows;
+  if (error || !created?.conversation_id) redirect("/workspace/chats?view=internal&error=create");
+  revalidatePath("/workspace/chats");
+  redirect(`/workspace/chats?view=internal&conversation=${encodeURIComponent(created.conversation_id)}`);
+}
+
 export async function setChatConversationState(conversationId: string, action: "archive" | "delete" | "restore"): Promise<{ error?: string }> {
   const id = String(conversationId ?? "").trim();
   if (!id) return { error: "Conversation not found." };

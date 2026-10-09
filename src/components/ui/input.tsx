@@ -7,7 +7,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
 }
 
 export function FieldLabel({ className, required, children, ...props }: LabelHTMLAttributes<HTMLLabelElement> & { required?: boolean }) {
-  return <label className={cn("relative mb-1.5 block pr-4 text-sm font-semibold text-[var(--betanor-header-text)]", className)} data-required={required ? "true" : undefined} {...props}>{children}{required ? <span aria-hidden="true" className="absolute top-0 right-0 text-[var(--betanor-danger)]">*</span> : null}</label>;
+  return <div className={cn("relative mb-1.5 flex items-start gap-1", className)}><label className="relative block min-w-0 flex-1 pr-4 text-sm font-semibold text-[var(--betanor-header-text)]" data-required={required ? "true" : undefined} {...props}>{children}{required ? <span aria-hidden="true" className="absolute top-0 right-0 text-[var(--betanor-danger)]">*</span> : null}</label><button type="button" data-field-info-trigger="true" aria-label="Show field information" aria-expanded="false" className="mt-0.5 inline-grid size-[18px] shrink-0 place-items-center rounded-full border border-[var(--betanor-muted)]/40 text-[var(--betanor-muted)] transition-colors hover:border-[var(--betanor-blue)] hover:text-[var(--betanor-blue)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--betanor-blue)]"><svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="8" cy="8" r="6.1"/><path d="M8 7v4m0-6h.01" strokeLinecap="round"/></svg></button></div>;
 }
 
 export function FieldHint({ children }: { children: ReactNode }) {

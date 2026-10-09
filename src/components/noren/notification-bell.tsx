@@ -29,11 +29,18 @@ export function NotificationBell({ userId, surface = "staff" }: { userId: string
   }, [surface]);
 
   useEffect(() => {
-    const initialLoad = window.setTimeout(() => { void load(); }, 0);
+    let hasLoaded = false;
+    const initialLoad = window.setTimeout(() => { hasLoaded = true; void load(); }, 0);
     const supabase = createClient();
     const channel = supabase.channel(`noren-notifications-${surface}-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `recipient_id=eq.${userId}` }, () => { void load(); })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          if (!hasLoaded) { hasLoaded = true; void load(); }
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          hasLoaded = false;
+        }
+      });
     return () => { window.clearTimeout(initialLoad); void supabase.removeChannel(channel); };
   }, [load, surface, userId]);
 

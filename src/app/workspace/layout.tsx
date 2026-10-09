@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { WorkspaceSidebar } from "@/components/navigation/workspace-sidebar";
 import { WorkspaceTopbar } from "@/components/navigation/workspace-topbar";
 import { StaffPresenceProvider } from "@/components/chat/staff-presence-provider";
+import { normalizeNavigationSettings } from "@/lib/navigation-settings";
 import { createClient } from "@/lib/supabase/server";
 import { resolveWorkspace } from "@/lib/workspace-context";
 
@@ -23,12 +24,16 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     redirect(access.accountType === "customer" ? "/portal" : "/login?next=/workspace");
   }
 
-  const { data: profile } = access.userId ? await supabase.from("profiles").select("full_name,avatar_path").eq("id", access.userId).maybeSingle() : { data: null };
+  const [{ data: profile }, { data: navigationRow }] = await Promise.all([
+    access.userId ? supabase.from("profiles").select("full_name,avatar_path").eq("id", access.userId).maybeSingle() : Promise.resolve({ data: null }),
+    access.workspaceId ? supabase.from("workspace_navigation_settings").select("staff_navigation").eq("workspace_id", access.workspaceId).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  const navigationSettings = normalizeNavigationSettings({ staff: navigationRow?.staff_navigation }).staff;
   const avatarUrl = profile?.avatar_path ? (await supabase.storage.from("betanor-profile-avatars").createSignedUrl(profile.avatar_path, 900)).data?.signedUrl : null;
   return (
     <StaffPresenceProvider workspaceId={access.workspaceId} userId={access.userId} enabled={access.hasStaffRole && (access.permissions.has("chat.manage") || access.permissions.has("chat.internal.read"))}>
     <div className="flex min-h-screen bg-[var(--betanor-surface)]">
-      <WorkspaceSidebar permissionCodes={[...access.permissions]} roleCodes={[...access.roleCodes]} hasStaffRole={access.hasStaffRole} />
+      <WorkspaceSidebar permissionCodes={[...access.permissions]} roleCodes={[...access.roleCodes]} hasStaffRole={access.hasStaffRole} navigationSettings={navigationSettings} />
       <div className="min-w-0 flex-1">
         <WorkspaceTopbar email={email} displayName={profile?.full_name} avatarUrl={avatarUrl} userId={access.userId ?? jwt.claims.sub} />
         {children}

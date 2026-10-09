@@ -33,12 +33,13 @@ export function StaffPresenceRoster({ staff, currentUserId }: { staff: StaffRost
     }
   }
 
-  return <details className="mt-3 rounded-xl border border-[var(--betanor-border)] bg-white">
+  return <details open className="mt-3 rounded-xl border border-[var(--betanor-border)] bg-white">
     <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-xs font-semibold text-[var(--betanor-navy)] [&::-webkit-details-marker]:hidden">
       <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-emerald-500" />Staff presence</span>
       <span className="text-[10px] font-medium text-[var(--betanor-muted)]">{enabled ? `${onlineCount} online · ${staff.length} staff` : `${staff.length} staff`}</span>
     </summary>
-    <div className="max-h-64 space-y-1 overflow-y-auto border-t border-[var(--betanor-border)] p-2">
+    <div className="border-t border-[var(--betanor-border)] px-3 pt-2"><p className="text-[10px] text-[var(--betanor-muted)]">Select any colleague to start a direct staff chat.</p></div>
+    <div className="max-h-64 space-y-1 overflow-y-auto p-2">
       {error ? <p role="alert" className="rounded-lg bg-rose-50 px-2 py-1.5 text-xs text-rose-700">{error}</p> : null}
       {staff.length ? staff.map((person) => {
         const online = enabled && onlineIds.has(person.profile_id);

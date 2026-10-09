@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { createClient as createAnonClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { getSupabasePublicConfig } from "@/lib/env";
+import { normalizeNavigationSettings, type NavigationSettings } from "@/lib/navigation-settings";
 import { loadStyleSettings, type StyleSettings } from "@/lib/style-settings";
 import type { SiteContent } from "@/lib/site-content";
 
@@ -16,6 +17,19 @@ const cachedStyleSettings = unstable_cache(
   async (): Promise<StyleSettings> => loadStyleSettings(publicSupabase()),
   ["betanor-public-style-settings"],
   { revalidate: 60, tags: ["betanor-public-style-settings"] },
+);
+
+const cachedNavigationSettings = unstable_cache(
+  async (): Promise<NavigationSettings> => {
+    const { data } = await publicSupabase()
+      .from("workspace_navigation_settings")
+      .select("staff_navigation,customer_navigation")
+      .limit(1)
+      .maybeSingle();
+    return normalizeNavigationSettings({ staff: data?.staff_navigation, customer: data?.customer_navigation });
+  },
+  ["betanor-public-navigation-settings"],
+  { revalidate: 120, tags: ["betanor-public-navigation-settings"] },
 );
 
 const cachedContentRows = unstable_cache(
@@ -73,6 +87,10 @@ const cachedInsights = unstable_cache(
 
 export async function loadCachedStyleSettings() {
   return cachedStyleSettings();
+}
+
+export async function loadCachedNavigationSettings() {
+  return cachedNavigationSettings();
 }
 
 export async function getCachedPublicContent(page: string) {

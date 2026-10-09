@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 type Hint = { label: string; description: string; x: number; y: number; placement: "top" | "bottom" };
 type Field = HTMLElement;
+const fieldSelector = "input:not([type='hidden']):not([type='submit']):not([type='reset']):not([type='button']):not([type='image']), select, textarea, [contenteditable='true']";
 
 const descriptions: Array<[RegExp, string]> = [
   [/e-?mail/i, "Enter an email address you can access; the system may use it for account or record updates."],
@@ -22,90 +23,139 @@ const descriptions: Array<[RegExp, string]> = [
   [/quantity|hours|days|rate|percent|tax/i, "Enter a numeric value using the unit shown beside this field."],
 ];
 
-function controlFrom(target: EventTarget | null): Field | null {
-  if (!(target instanceof Element)) return null;
-  const field = target.closest("input, select, textarea, [contenteditable='true']");
-  if (!(field instanceof HTMLElement)) return null;
-  if (field instanceof HTMLInputElement && ["hidden", "submit", "reset", "button", "image"].includes(field.type)) return null;
-  return field;
+function controlFor(label: HTMLLabelElement): Field | null {
+  const target = label.control ?? (label.htmlFor ? document.getElementById(label.htmlFor) : null);
+  if (!(target instanceof HTMLElement)) return null;
+  if (target instanceof HTMLInputElement && ["hidden", "submit", "reset", "button", "image"].includes(target.type)) return null;
+  return target;
 }
 
-function fieldLabel(field: Field) {
+function fieldLabel(field: Field, labelElement?: HTMLLabelElement | null) {
   const idLabel = field.id ? document.querySelector<HTMLLabelElement>(`label[for="${CSS.escape(field.id)}"]`) : null;
-  const nested = field.closest("label");
-  const label = (idLabel?.textContent || nested?.textContent || field.getAttribute("aria-label") || field.getAttribute("placeholder") || field.getAttribute("name") || "").replace(/\s+/g, " ").trim();
-  return label.replace(/\s*\*\s*$/, "") || "This field";
+  const label = (labelElement?.textContent || idLabel?.textContent || field.getAttribute("aria-label") || field.getAttribute("placeholder") || field.getAttribute("name") || "").replace(/\s+/g, " ").trim();
+  return label.replace(/\s*\*\s*$/, "").trim() || "This field";
 }
 
 function fieldDescription(field: Field, label: string) {
-  const custom = field.getAttribute("data-tooltip") || field.getAttribute("title");
+  const custom = field.getAttribute("data-tooltip");
   if (custom?.trim()) return custom.trim();
   const subject = `${label} ${field.getAttribute("name") || ""} ${field.getAttribute("type") || ""}`;
   return descriptions.find(([pattern]) => pattern.test(subject))?.[1] ?? `Enter the ${label.toLocaleLowerCase()} for this record. Leave it blank if it is optional.`;
+}
+
+function tooltipPosition(anchor: HTMLElement): Pick<Hint, "x" | "y" | "placement"> {
+  const rect = anchor.getBoundingClientRect();
+  const edge = Math.min(170, Math.max(8, window.innerWidth / 2 - 8));
+  const x = Math.min(Math.max(rect.left + rect.width / 2, edge), window.innerWidth - edge);
+  const placement = rect.bottom + 96 <= window.innerHeight ? "bottom" : "top";
+  const y = placement === "bottom" ? rect.bottom + 7 : Math.max(8, rect.top - 7);
+  return { x, y, placement };
+}
+
+function makeInfoButton() {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.dataset.fieldInfoTrigger = "true";
+  button.setAttribute("aria-label", "Show field information");
+  button.setAttribute("aria-expanded", "false");
+  button.className = "ml-1 mt-0.5 inline-grid size-[18px] shrink-0 place-items-center rounded-full border border-[var(--betanor-muted)]/40 text-[10px] font-bold leading-none text-[var(--betanor-muted)] align-middle transition-colors hover:border-[var(--betanor-blue)] hover:text-[var(--betanor-blue)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--betanor-blue)]";
+  button.textContent = "i";
+  return button;
 }
 
 export function FieldTooltips() {
   const [hint, setHint] = useState<Hint | null>(null);
 
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let active: Field | null = null;
+    let activeButton: HTMLButtonElement | null = null;
+    let activeField: Field | null = null;
     let previousDescriptionIds: string | null = null;
+
     const clear = () => {
-      if (timer) clearTimeout(timer);
-      if (active?.getAttribute("aria-describedby") === "global-field-tooltip") {
-        if (previousDescriptionIds) active.setAttribute("aria-describedby", previousDescriptionIds);
-        else active.removeAttribute("aria-describedby");
+      if (activeButton) activeButton.setAttribute("aria-expanded", "false");
+      if (activeField?.getAttribute("aria-describedby")?.split(/\s+/).includes("global-field-tooltip")) {
+        if (previousDescriptionIds) activeField.setAttribute("aria-describedby", previousDescriptionIds);
+        else activeField.removeAttribute("aria-describedby");
       }
-      active = null;
+      activeButton = null;
+      activeField = null;
       previousDescriptionIds = null;
       setHint(null);
     };
-    const show = (event: Event, immediate: boolean) => {
-      const field = controlFrom(event.target);
-      if (!field || (event.type === "pointerover" && field === active)) return;
+
+    const show = (button: HTMLButtonElement) => {
+      if (activeButton === button) { clear(); return; }
       clear();
-      active = field;
+      const previous = button.previousElementSibling;
+      const labelElement = previous instanceof HTMLLabelElement
+        ? previous
+        : button.closest("div")?.querySelector<HTMLLabelElement>("label[for]") ?? null;
+      const field = labelElement ? controlFor(labelElement) : previous instanceof HTMLElement && previous.matches(fieldSelector) ? previous : null;
+      if (!field) return;
+      activeButton = button;
+      activeField = field;
       previousDescriptionIds = field.getAttribute("aria-describedby");
-      const label = fieldLabel(field);
-      const display = () => {
-        if (!active || !active.isConnected) return clear();
-        active.setAttribute("aria-describedby", "global-field-tooltip");
-        const currentRect = active.getBoundingClientRect();
-        const placement = currentRect.bottom + 96 <= window.innerHeight ? "bottom" : "top";
-        const y = placement === "bottom" ? currentRect.bottom + 8 : Math.max(8, currentRect.top - 8);
-        setHint({ label, description: fieldDescription(active, label), x: Math.min(Math.max(currentRect.left + currentRect.width / 2, 170), window.innerWidth - 170), y, placement });
-      };
-      if (immediate) display();
-      else timer = setTimeout(display, 450);
+      button.setAttribute("aria-expanded", "true");
+      const label = fieldLabel(field, labelElement);
+      field.setAttribute("aria-describedby", [previousDescriptionIds, "global-field-tooltip"].filter(Boolean).join(" "));
+      setHint({ label, description: fieldDescription(field, label), ...tooltipPosition(button) });
     };
-    const onPointerOver = (event: Event) => show(event, false);
-    const onPointerOut = (event: Event) => {
-      const field = controlFrom(event.target);
-      const next = controlFrom((event as PointerEvent).relatedTarget);
-      if (field && field === active && next !== field) clear();
+
+    const enhanceField = (field: Field) => {
+      const nativeTitle = field.getAttribute("title");
+      if (nativeTitle && !field.hasAttribute("data-tooltip")) field.setAttribute("data-tooltip", nativeTitle);
+      if (nativeTitle) field.removeAttribute("title");
+      const labels = field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement ? Array.from(field.labels ?? []) : [];
+      if (labels.length) {
+        labels.forEach((label) => {
+          const next = label.nextElementSibling;
+          if (!(next instanceof HTMLButtonElement && next.hasAttribute("data-field-info-trigger"))) label.after(makeInfoButton());
+        });
+      } else if (field.getClientRects().length && !(field.nextElementSibling instanceof HTMLButtonElement && field.nextElementSibling.hasAttribute("data-field-info-trigger"))) {
+        field.after(makeInfoButton());
+      }
     };
-    const onFocusIn = (event: Event) => show(event, true);
-    const onFocusOut = (event: Event) => {
-      const field = controlFrom(event.target);
-      const next = controlFrom((event as FocusEvent).relatedTarget);
-      if (field && field === active && next !== field) clear();
+
+    const enhanceNode = (node: Node) => {
+      if (!(node instanceof Element)) return;
+      if (node.matches(fieldSelector)) enhanceField(node as Field);
+      node.querySelectorAll<Field>(fieldSelector).forEach(enhanceField);
     };
-    const onScrollOrResize = () => { if (active) { const label = fieldLabel(active); const rect = active.getBoundingClientRect(); const placement = rect.bottom + 96 <= window.innerHeight ? "bottom" : "top"; const y = placement === "bottom" ? rect.bottom + 8 : Math.max(8, rect.top - 8); setHint({ label, description: fieldDescription(active, label), x: Math.min(Math.max(rect.left + rect.width / 2, 170), window.innerWidth - 170), y, placement }); } };
-    document.addEventListener("pointerover", onPointerOver, true);
-    document.addEventListener("pointerout", onPointerOut, true);
-    document.addEventListener("focusin", onFocusIn, true);
-    document.addEventListener("focusout", onFocusOut, true);
-    window.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
+
+    const onClick = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const button = target?.closest<HTMLButtonElement>("button[data-field-info-trigger]");
+      if (button) {
+        event.preventDefault();
+        event.stopPropagation();
+        show(button);
+      } else if (activeButton && target && !target.closest("#global-field-tooltip")) {
+        clear();
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape" && activeButton) clear(); };
+    const onPositionChange = () => {
+      if (!activeButton?.isConnected) { clear(); return; }
+      setHint((current) => current && activeButton ? { ...current, ...tooltipPosition(activeButton) } : current);
+    };
+
+    enhanceNode(document.body);
+    const observer = new MutationObserver((records) => {
+      if (activeButton && !activeButton.isConnected) clear();
+      records.forEach((record) => record.addedNodes.forEach(enhanceNode));
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    document.addEventListener("click", onClick, true);
+    document.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("scroll", onPositionChange, true);
+    window.addEventListener("resize", onPositionChange);
     return () => {
+      observer.disconnect();
+      document.removeEventListener("click", onClick, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("scroll", onPositionChange, true);
+      window.removeEventListener("resize", onPositionChange);
       clear();
-      document.removeEventListener("pointerover", onPointerOver, true);
-      document.removeEventListener("pointerout", onPointerOut, true);
-      document.removeEventListener("focusin", onFocusIn, true);
-      document.removeEventListener("focusout", onFocusOut, true);
-      window.removeEventListener("scroll", onScrollOrResize, true);
-      window.removeEventListener("resize", onScrollOrResize);
     };
   }, []);
 
