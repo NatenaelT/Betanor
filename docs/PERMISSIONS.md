@@ -1,5 +1,18 @@
 # Permissions and RLS Strategy
 
+## Recruitment workflow permissions
+
+| Capability | Recruitment manager / HR | Other staff | Public applicant | Customer account |
+|---|---:|---:|---:|---:|
+| View/manage vacancies, form fields, publish status, delete | Yes (`recruitment.manage`) | No | No | No |
+| View candidate profiles and shortlist data | Yes (`recruitment.manage`) | No | Own submission only (confirmation) | No |
+| Open CV/cover-letter attachments | Yes, short-lived signed URL | No | Cannot read uploaded files after upload | No |
+| Review, schedule interviews, change pipeline stage | Yes (`recruitment.manage`) | No | No | No |
+| Mark candidate Hired and create/link employee record | Yes; DB trigger validates this permission | No | No | No |
+| Submit an application | No login required; RPC validates vacancy, email and uploaded CV | — | Yes | Yes, same public flow |
+
+Server actions verify an active staff role and `recruitment.manage`; Supabase table RLS remains the second authorization layer. The public application RPC is a narrow SECURITY DEFINER intake boundary: it accepts only an active/date-valid vacancy ID, valid email, uploaded private CV, optional valid cover-letter path, and answers matching the saved dropdown schema. Storage policies prohibit public reads and updates. HR does not receive applicant login access automatically; hiring creates an employee profile only, after which the existing invite/account-provisioning workflow controls access.
+
 ## Noren notification access
 
 | Capability | Active staff | Support staff | Management | Customer |

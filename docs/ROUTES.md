@@ -1,5 +1,16 @@
 # Proposed Route Map
 
+## Recruitment
+
+| Route | Purpose | Access |
+|---|---|---|
+| `/careers` | Public active vacancies and application submission with private CV and optional cover-letter upload | Public; active/date-valid vacancies only |
+| `/workspace/recruitment` | Create, edit, publish/unpublish, archive, or delete vacancies and configure dropdown/conditional questions | Staff with `recruitment.manage` |
+| `/workspace/recruitment/shortlisting` | Candidate review, names, score, notes, attachments, and pipeline stage | Staff with `recruitment.manage` |
+| `/workspace/recruitment/interviews` | Shortlist/interview queue, date/time/location/notes, outcome, and attachments | Staff with `recruitment.manage` |
+
+The People navigation exposes Recruitment, Shortlisting, and Interviews as separate role-filtered links. Private candidate files are opened through short-lived signed URLs; no public object URL is issued.
+
 ## Noren first integrated release
 
 - `/workspace/noren` redirects to `/workspace/noren/inbox`.

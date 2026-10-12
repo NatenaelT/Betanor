@@ -1,5 +1,13 @@
 # Proposed Workflows
 
+## Vacancy posting, applicant screening, interviews, and hire
+
+HR creates a draft vacancy, chooses an optional department/position, defines role details, and builds data-only applicant questions. Questions are dropdown/yes-no, may be conditional on an earlier answer, and remain optional. Publishing makes the role visible on `/careers`; changing status to inactive/draft/archive unpublishes it. HR can edit any vacancy and use an in-page confirmation to delete it. Deletion removes that vacancy's applications; candidate records/files shared with another vacancy are preserved.
+
+An applicant submits a valid email plus a required PDF/DOC/DOCX CV or resume (10 MiB maximum), with optional names, phone, custom answers, and optional cover-letter file. Files are uploaded to private UUID-scoped Storage first; the public database RPC then validates the live vacancy, email, file object, schema keys, dropdown values, and conditional visibility before inserting a candidate and application. Failed submissions can clean up only unlinked intake objects. No public read link is issued.
+
+HR reviews candidates in Shortlisting, adds names/score/notes, and moves applications through Applied → Screening → Shortlisted. The Interviews navigation shows shortlisted/interview-stage candidates and saves an Ethiopia-time interview date, location/link, and notes. CV and cover letter are opened with short-lived signed links. Selecting Hired requires candidate first and last name; a database trigger atomically creates (or links an existing employee with the same work email) and stores the employee ID on the application. The employee appears in the existing staff directory. Auth login is not created by this trigger; HR uses the employee access/invitation workflow to provision a separate Supabase identity safely.
+
 ## Noren personal notifications — first release
 
 An authorized action, such as task assignment, support assignment, internal message or letter publication, creates its existing durable notification for the intended profile. The Noren bell and inbox load only `recipient_id = current user` rows in recent-first pages. A recipient-scoped Realtime subscription refreshes the unread count and visible page. Opening an item or choosing Mark read changes only that user's `read_at`; database RLS blocks another user's row. Staff destinations are selected by entity type and current module permission. Customer notices are limited to support tickets still authorized under the active organization link. Telegram delivery remains preference-controlled and asynchronous. This first release does not claim that every event in the full Noren specification has a producer; channels, calls, and event-by-event preferences remain controlled later phases.
