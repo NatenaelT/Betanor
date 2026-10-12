@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -10,7 +11,7 @@ type ModuleCard = { label: string; description: string; href: string; permission
 
 const moduleArt: Record<string, { icon: string; background: string; iconBackground: string; iconColor: string; glow: string }> = {
   "My work": { icon: "work", background: "from-sky-50 via-white to-blue-100/80", iconBackground: "bg-sky-100", iconColor: "text-sky-800", glow: "bg-sky-300/40" },
-  "Messages & chat": { icon: "chat", background: "from-violet-50 via-white to-fuchsia-100/70", iconBackground: "bg-violet-100", iconColor: "text-violet-800", glow: "bg-fuchsia-300/40" },
+  "Messages & chat": { icon: "noren", background: "from-violet-50 via-white to-fuchsia-100/70", iconBackground: "bg-violet-100", iconColor: "text-violet-800", glow: "bg-fuchsia-300/40" },
   People: { icon: "people", background: "from-rose-50 via-white to-orange-100/70", iconBackground: "bg-rose-100", iconColor: "text-rose-800", glow: "bg-orange-300/40" },
   "IT Support": { icon: "support", background: "from-teal-50 via-white to-cyan-100/80", iconBackground: "bg-teal-100", iconColor: "text-teal-800", glow: "bg-cyan-300/40" },
   Finance: { icon: "finance", background: "from-emerald-50 via-white to-lime-100/70", iconBackground: "bg-emerald-100", iconColor: "text-emerald-800", glow: "bg-lime-300/40" },
@@ -24,6 +25,7 @@ const moduleArt: Record<string, { icon: string; background: string; iconBackgrou
 };
 
 function ModuleIcon({ name }: { name: string }) {
+  if (name === "noren") return <Image src="/brand/betanor-noren-mark.png" alt="" aria-hidden="true" width={32} height={32} className="size-5 object-contain" />;
   const common = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" {...common}>
     {name === "work" ? <><path d="M9 5h6l1 2h3v13H5V7h3l1-2Z"/><path d="m9 13 2 2 4-4"/></> : null}

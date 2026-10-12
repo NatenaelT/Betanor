@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
@@ -17,6 +18,28 @@ const iconByLabel: Record<string, string> = {
   "Content management": "content", "Product catalogue": "products", "System configuration": "settings", "Brand style": "brand",
   "Users & access": "users", "Departments & positions": "departments", "Help & user manual": "help", "Programmer guide": "guide",
 };
+
+const sectionIconById: Record<string, string> = {
+  start: "modules",
+  people: "employee",
+  work: "projects",
+  noren: "noren",
+  support: "support",
+  finance: "finance",
+  documents: "files",
+  sales: "crm",
+  tenders: "tender",
+  system: "settings",
+  administration: "users",
+  help: "help",
+};
+
+function SectionIcon({ sectionId }: { sectionId: string }) {
+  if (sectionId === "noren") {
+    return <Image src="/brand/betanor-noren-mark.png" alt="" aria-hidden="true" width={64} height={64} className="size-[18px] object-contain" />;
+  }
+  return <NavIcon name={sectionIconById[sectionId] ?? "help"} className="size-[18px]" />;
+}
 
 function NavIcon({ name, className }: { name: string; className?: string }) {
   const common = { className, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true as const };
@@ -102,7 +125,7 @@ function NavigationContents({
         const groupKey = section.id;
         const expanded = openSections[groupKey] ?? true;
         return <section key={groupKey}>
-          {section.label && !collapsed ? <button type="button" aria-expanded={expanded} onClick={() => setOpenSections((current) => ({ ...current, [groupKey]: !expanded }))} className="mb-1 flex min-h-9 w-full items-center justify-between px-3 text-[12.5px] font-bold uppercase tracking-[0.11em] text-[var(--betanor-nav-text)]/65 transition-colors hover:text-[var(--betanor-nav-edge)]"><span className="flex items-center gap-2">{section.id === "noren" ? <NavIcon name="noren" className="size-[18px] text-[var(--betanor-nav-edge)]" /> : null}{section.label}</span><span aria-hidden="true" className={cn("text-xs transition-transform", expanded ? "rotate-90" : "")}>›</span></button> : section.id === "noren" && collapsed ? <div title="Noren" className="mb-1 flex min-h-9 items-center justify-center text-[var(--betanor-nav-edge)]"><NavIcon name="noren" className="size-[18px]" /></div> : null}
+          {section.label && !collapsed ? <button type="button" aria-expanded={expanded} onClick={() => setOpenSections((current) => ({ ...current, [groupKey]: !expanded }))} className="mb-1 flex min-h-9 w-full items-center justify-between px-3 text-[12.5px] font-bold uppercase tracking-[0.11em] text-[var(--betanor-nav-text)]/65 transition-colors hover:text-[var(--betanor-nav-edge)]"><span className="flex items-center gap-2"><span className={cn("grid size-6 shrink-0 place-items-center", section.id === "noren" && "rounded-md bg-white") }><SectionIcon sectionId={section.id} /></span>{section.label}</span><span aria-hidden="true" className={cn("text-xs transition-transform", expanded ? "rotate-90" : "")}>›</span></button> : section.label && collapsed ? <div title={section.label} aria-label={section.label} className="mb-1 flex min-h-9 items-center justify-center text-[var(--betanor-nav-edge)]"><span className={cn("grid size-7 place-items-center", section.id === "noren" && "rounded-md bg-white")}><SectionIcon sectionId={section.id} /></span></div> : null}
           {expanded || collapsed ? <div className="space-y-1">{visibleItems.map((item) => {
             const active = Boolean(item.href) && (item.href === "/workspace" ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`));
             const className = cn("group relative flex min-h-10 items-center gap-3 rounded-xl px-3 text-xs transition-colors", active ? "bg-[var(--betanor-nav-hover)] font-semibold text-[var(--betanor-nav-text)] shadow-sm" : "text-[var(--betanor-nav-text)]/75 hover:bg-[var(--betanor-nav-edge)]/10 hover:text-[var(--betanor-nav-edge)]", collapsed && "justify-center px-0");
