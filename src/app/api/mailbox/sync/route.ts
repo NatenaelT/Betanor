@@ -45,9 +45,10 @@ export async function POST() {
   let importedAttachments = 0;
   let nextUid = 0;
   let uidValidity = "0";
+  let moreAvailable = false;
   try {
     await imap.connect();
-    const lock = await imap.getMailboxLock("INBOX", { acquireTimeout: 10_000, maxLockHoldTime: 20_000 });
+    const lock = await imap.getMailboxLock("INBOX", { acquireTimeout: 10_000, maxLockHoldTime: 60_000 });
     try {
       const activeMailbox = imap.mailbox;
       if (!activeMailbox) throw new Error("INBOX did not open.");
@@ -67,6 +68,9 @@ export async function POST() {
       const candidateUids: number[] = [];
       const candidateFlags = new Map<number, Set<string>>();
       for await (const item of imap.fetch(range, { uid: true, flags: true }, uidRange ? { uid: true } : undefined)) {
+        // An IMAP UID range ending in `*` can include the current highest UID
+        // again when the mailbox has no newer messages. Keep the cursor strict.
+        if (uidRange && item.uid <= previousUid) continue;
         candidateUids.push(item.uid);
         candidateFlags.set(item.uid, item.flags ?? new Set());
         if (candidateUids.length >= 100) break;
@@ -90,9 +94,8 @@ export async function POST() {
             .eq("mailbox_id", mailbox.id).eq("mail_folder", "INBOX")
             .eq("imap_uid_validity", Number(uidValidity)).in("imap_uid", uids);
         }
-        const newUids = candidateUids.filter((uid) => !alreadyImported.has(uid)).slice(0, 2);
+        const newUids = candidateUids.filter((uid) => !alreadyImported.has(uid)).slice(0, 10);
         if (newUids.length) {
-          const fetched: Array<{ uid: number; source?: Buffer; flags?: Set<string>; internalDate?: Date | string }> = [];
           const maxSource = 72 * 1024 * 1024;
           for await (const item of imap.fetch(newUids.join(","), {
             uid: true,
@@ -100,11 +103,9 @@ export async function POST() {
             flags: true,
             internalDate: true,
           }, { uid: true })) {
-            fetched.push(item);
-          }
-          const parsedRows: Array<{ row: Record<string, unknown>; attachments: Array<{ name: string; mime: string; bytes: Buffer; cid: string | null; disposition: string }> }> = [];
-          for (const item of fetched) {
             if (!item.source) continue;
+            let row: Record<string, unknown>;
+            let attachments: Array<{ name: string; mime: string; bytes: Buffer; cid: string | null; disposition: string }> = [];
             try {
               const parsed = await simpleParser(item.source);
               const from = addresses(parsed.from);
@@ -114,15 +115,14 @@ export async function POST() {
               const normalizedSubject = (parsed.subject || "(No subject)").slice(0, 250);
               const text = (parsed.text || "[This email has no plain-text body.] ").slice(0, 100_000);
               const received = parsed.date || item.internalDate || new Date();
-              const attachments = (parsed.attachments ?? []).map((attachment) => ({
+              attachments = (parsed.attachments ?? []).map((attachment) => ({
                 name: safeFileName(attachment.filename || "attachment"),
                 mime: (attachment.contentType || "application/octet-stream").slice(0, 180),
                 bytes: attachment.content,
                 cid: attachment.contentId?.slice(0, 250) || null,
                 disposition: attachment.contentDisposition === "inline" ? "inline" : "attachment",
               }));
-              parsedRows.push({
-                row: {
+              row = {
                   workspace_id: access.workspaceId,
                   mailbox_id: mailbox.id,
                   sender_profile_id: access.userId,
@@ -143,13 +143,10 @@ export async function POST() {
                   received_at: new Date(received).toISOString(),
                   is_read: item.flags?.has("\\Seen") ?? false,
                   is_starred: item.flags?.has("\\Flagged") ?? false,
-                },
-                attachments,
-              });
+                };
             } catch {
               // Preserve the message header when a malformed MIME payload cannot be parsed.
-              parsedRows.push({
-                row: {
+              row = {
                   workspace_id: access.workspaceId,
                   mailbox_id: mailbox.id,
                   sender_profile_id: access.userId,
@@ -169,27 +166,23 @@ export async function POST() {
                   received_at: new Date().toISOString(),
                   is_read: false,
                   is_starred: false,
-                },
-                attachments: [],
-              });
+                };
+              attachments = [];
             }
-          }
-          const { data: inserted, error: insertError } = await supabase.from("email_messages")
-            .upsert(parsedRows.map((entry) => entry.row), {
+            const { data: inserted, error: insertError } = await supabase.from("email_messages")
+              .upsert(row, {
               onConflict: "mailbox_id,imap_uid_validity,imap_uid",
               ignoreDuplicates: true,
             })
-            .select("id,imap_uid");
-          if (insertError) throw insertError;
-          const messageIdByUid = new Map<number, string>((inserted ?? []).map((row: { id: string; imap_uid: number }) => [Number(row.imap_uid), row.id]));
-          for (const entry of parsedRows) {
-            const uid = Number(entry.row.imap_uid);
-            const messageId = messageIdByUid.get(uid);
+              .select("id")
+              .maybeSingle();
+            if (insertError) throw insertError;
+            const messageId = inserted?.id;
             if (!messageId) continue;
             imported += 1;
             let remainingBytes = Number(settings.max_attachment_bytes);
             const metadata = [];
-            for (const attachment of entry.attachments) {
+            for (const attachment of attachments) {
               if (attachment.bytes.length > remainingBytes) continue;
               remainingBytes -= attachment.bytes.length;
               const name = `${access.userId}/${messageId}/${randomUUID()}-${attachment.name}`;
@@ -220,8 +213,9 @@ export async function POST() {
       } else {
         nextUid = previousUid;
       }
-      // The first sync only imports the most recent 30 messages. All subsequent
-      // syncs process at most 2 new messages per request to bound server memory/time.
+      moreAvailable = candidateUids.length >= 100 || candidateUids.some((uid) => uid > nextUid);
+      // The first sync starts with the latest 30 messages. Later requests import
+      // at most 10 at a time; the client can continue in bounded batches.
       const cursor = {
         ...(mailbox.sync_cursor ?? {}),
         INBOX: { uidValidity, lastUid: nextUid },
@@ -237,7 +231,7 @@ export async function POST() {
     } finally {
       lock.release();
     }
-    return NextResponse.json({ imported, importedAttachments, nextUid, syncedAt: new Date().toISOString() });
+    return NextResponse.json({ imported, importedAttachments, nextUid, moreAvailable, syncedAt: new Date().toISOString() });
   } catch (error) {
     console.error("Staff mailbox IMAP sync failed", error instanceof Error ? error.name : "unknown");
     await supabase.from("email_mailboxes").update({

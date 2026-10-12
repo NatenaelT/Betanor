@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AiProofreadButton } from "@/components/ai/ai-proofread-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldLabel, Input } from "@/components/ui/input";
@@ -116,8 +115,8 @@ export function EmailComposeForm({
     <Card className="space-y-5 p-5 sm:p-6">
       <div><FieldLabel required htmlFor="email-to">To</FieldLabel><Input id="email-to" name="to" type="text" required defaultValue={initialTo} placeholder="name@example.com; another@example.com" autoComplete="off" /><p className="mt-1 text-xs text-[var(--betanor-muted)]">Separate addresses with commas or semicolons.</p></div>
       <div><FieldLabel htmlFor="email-cc">CC</FieldLabel><Input id="email-cc" name="cc" type="text" defaultValue={initialCc} placeholder="Optional copy recipients" autoComplete="off" /></div>
-      <div className="space-y-2"><FieldLabel required htmlFor="email-subject">Subject</FieldLabel><Input id="email-subject" name="subject" required maxLength={250} value={subject} onChange={(event) => setSubject(event.target.value)} /><AiProofreadButton contentType="email" value={subject} onUse={setSubject} label="Check subject" /></div>
-      <div className="space-y-2"><FieldLabel required htmlFor="email-body">Message</FieldLabel><textarea id="email-body" name="body" required rows={12} maxLength={50000} value={body} onChange={(event) => setBody(event.target.value)} className="w-full rounded-lg border border-[var(--betanor-field-border)] bg-[var(--betanor-field-background)] px-3 py-2 text-sm text-[var(--betanor-field-text)]" placeholder="Write your message…" /><AiProofreadButton contentType="email" value={body} onUse={setBody} /></div>
+      <div><FieldLabel required htmlFor="email-subject">Subject</FieldLabel><Input id="email-subject" name="subject" required maxLength={250} value={subject} onChange={(event) => setSubject(event.target.value)} /></div>
+      <div><FieldLabel required htmlFor="email-body">Message</FieldLabel><textarea id="email-body" name="body" required rows={12} maxLength={50000} value={body} onChange={(event) => setBody(event.target.value)} className="w-full resize-y rounded-lg border border-[var(--betanor-field-border)] bg-[var(--betanor-field-background)] px-3 py-2 text-sm text-[var(--betanor-field-text)]" placeholder="Write your message…" /></div>
     </Card>
 
     <Card className="p-5 sm:p-6">
@@ -134,6 +133,6 @@ export function EmailComposeForm({
 
     {!deliveryConfigured ? <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Connect your registered staff mailbox before sending. You can save drafts now. <a href="/workspace/mailbox" className="font-semibold underline">Open mailbox settings</a>.</p> : null}
     {feedback ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">{feedback}{savedDraftId ? <> <a className="font-semibold underline" href={`/workspace/emails/${savedDraftId}`}>Open saved draft</a></> : null}</p> : null}
-    <div className="flex flex-wrap justify-end gap-3"><Button type="submit" variant="outline" disabled={working}>{working ? "Saving…" : "Save draft"}</Button><Button type="button" disabled={working || !deliveryConfigured} onClick={() => { const form = formRef.current; if (form?.reportValidity()) void save(form, "send"); }}>{working ? "Sending…" : "Send email"}</Button></div>
+    <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-[var(--betanor-border)] bg-white/95 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:flex-row sm:justify-end sm:gap-3 sm:border-0 sm:bg-transparent sm:p-0"><Button type="submit" variant="outline" disabled={working} className="w-full sm:w-auto">{working ? "Saving…" : "Save draft"}</Button><Button type="button" disabled={working || !deliveryConfigured} onClick={() => { const form = formRef.current; if (form?.reportValidity()) void save(form, "send"); }} className="w-full sm:w-auto">{working ? "Sending…" : "Send email"}</Button></div>
   </form>;
 }

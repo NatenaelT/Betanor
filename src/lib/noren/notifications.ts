@@ -9,6 +9,11 @@ export type NorenNotification = {
   created_at: string;
 };
 
+export function notificationPreview(body: string | null, maxLength = 140) {
+  const preview = (body || "").replace(/\s+/g, " ").trim();
+  return preview.length > maxLength ? `${preview.slice(0, maxLength).trimEnd()}…` : preview;
+}
+
 const taskTypes = new Set(["TASK_ASSIGNED", "TASK_DUE", "TASK_OVERDUE"]);
 
 export function isAssignmentNotification(item: Pick<NorenNotification, "type" | "entity_type">) {

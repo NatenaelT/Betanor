@@ -2,10 +2,9 @@
 
 import { Upload } from "tus-js-client";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, InputHTMLAttributes } from "react";
 
-import { AiProofreadButton } from "@/components/ai/ai-proofread-button";
 import { usePwaInstall } from "@/components/pwa/pwa-runtime";
 import { createClient } from "@/lib/supabase/client";
 
@@ -28,6 +27,7 @@ type Message = {
   is_read: boolean;
   is_starred: boolean;
   parent_message_id: string | null;
+  delivery_error?: string | null;
   attachments?: Attachment[];
 };
 type Mailbox = { id: string; email_address: string; status: string; signature_text: string; last_synced_at: string | null; last_sync_error?: string | null };
@@ -62,7 +62,7 @@ function addressLine(message: Message) {
     : `To ${(message.to_addresses ?? []).join(", ") || "No recipient"}`;
 }
 
-export function EmbeddedMailbox({ canManageSettings, canReadMailbox }: { canManageSettings: boolean; canReadMailbox: boolean }) {
+export function EmbeddedMailbox({ canManageSettings, canReadMailbox, canSendEmail }: { canManageSettings: boolean; canReadMailbox: boolean; canSendEmail: boolean }) {
   const { lowDataMode } = usePwaInstall();
   const [account, setAccount] = useState<Account | null>(null);
   const [folder, setFolder] = useState<Folder>("INBOX");
@@ -93,6 +93,7 @@ export function EmbeddedMailbox({ canManageSettings, canReadMailbox }: { canMana
   const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false);
   const [disconnectConfirm, setDisconnectConfirm] = useState(false);
   const [mailSettings, setMailSettings] = useState<MailSettings | null>(null);
+  const syncInProgress = useRef(false);
 
   const folderCounts = useMemo(() => ({
     INBOX: messages.filter((message) => !message.is_read).length,
@@ -141,21 +142,33 @@ export function EmbeddedMailbox({ canManageSettings, canReadMailbox }: { canMana
   }, [refresh]);
 
   const syncInbox = useCallback(async (quiet = false) => {
-    if (busy || account?.mailbox?.status !== "CONNECTED") return;
+    if (syncInProgress.current || account?.mailbox?.status !== "CONNECTED") return;
+    syncInProgress.current = true;
     if (!quiet) setBusy(true);
     try {
-      const response = await fetch("/api/mailbox/sync", { method: "POST" });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(errorText(data, "Inbox sync failed."));
-      if (!quiet) setFeedback(data.imported ? `${data.imported} new message${data.imported === 1 ? "" : "s"} synced.` : "Inbox is up to date.");
+      let imported = 0;
+      let moreAvailable = false;
+      const maxBatches = quiet ? 1 : 5;
+      for (let batch = 0; batch < maxBatches; batch += 1) {
+        const response = await fetch("/api/mailbox/sync", { method: "POST" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(errorText(data, "Inbox sync failed."));
+        imported += Number(data.imported) || 0;
+        moreAvailable = Boolean(data.moreAvailable);
+        if (!moreAvailable) break;
+      }
+      if (!quiet) setFeedback(imported
+        ? `${imported} new message${imported === 1 ? "" : "s"} synced.${moreAvailable ? " More remain; select Sync again to continue." : ""}`
+        : moreAvailable ? "More messages are waiting. Select Sync again to continue." : "Inbox is up to date.");
       await loadMessages(folder, search);
       await loadAccount();
     } catch (error) {
       if (!quiet) setFeedback(error instanceof Error ? error.message : "Inbox sync failed.");
     } finally {
+      syncInProgress.current = false;
       if (!quiet) setBusy(false);
     }
-  }, [account?.mailbox, busy, folder, loadAccount, loadMessages, search]);
+  }, [account?.mailbox, folder, loadAccount, loadMessages, search]);
 
   useEffect(() => {
     if (account?.mailbox?.status !== "CONNECTED") return;
@@ -202,6 +215,10 @@ export function EmbeddedMailbox({ canManageSettings, canReadMailbox }: { canMana
   }
 
   function startCompose(message?: Message, mode: "new" | "reply" | "replyAll" | "forward" | "edit" = "new") {
+    if (!canSendEmail) {
+      setFeedback("Your account can read this mailbox but does not have permission to send. Ask an administrator to grant email.send.");
+      return;
+    }
     if (!message || mode === "new") {
       setDraftId(""); setParentMessageId(""); setTo(""); setCc(""); setBcc(""); setSubject(""); setBody(""); setFiles([]); setDraftAttachments([]);
     } else if (mode === "edit") {
@@ -307,6 +324,14 @@ export function EmbeddedMailbox({ canManageSettings, canReadMailbox }: { canMana
   }
 
   async function saveDraft(sendNow: boolean) {
+    if (sendNow && !canSendEmail) {
+      setFeedback("Your account does not have permission to send email.");
+      return;
+    }
+    if (sendNow && (!to.trim() || !subject.trim() || !body.trim())) {
+      setFeedback("Add at least one recipient, a subject, and a message before sending.");
+      return;
+    }
     setBusy(true); setFeedback("");
     try {
       const payload = { to, cc, bcc, subject, body, parentMessageId: parentMessageId || null };
@@ -317,6 +342,7 @@ export function EmbeddedMailbox({ canManageSettings, canReadMailbox }: { canMana
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(errorText(data, "Draft could not be saved."));
       const id = draftId || data.id;
+      setDraftId(id);
       if (files.length) { await uploadFiles(id, files); setFiles([]); }
       if (sendNow) {
         const sent = await fetch(`/api/mailbox/messages/${id}/send`, { method: "POST" });
@@ -395,7 +421,7 @@ export function EmbeddedMailbox({ canManageSettings, canReadMailbox }: { canMana
     <header className="flex flex-col gap-3 border-b border-[var(--betanor-border)] bg-[linear-gradient(115deg,rgba(12,44,82,.04),rgba(255,255,255,0)_64%)] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
       <div className="flex min-w-0 items-center gap-3"><span className="hidden size-10 shrink-0 place-items-center rounded-xl bg-[var(--betanor-navy)] text-lg text-white sm:grid">✉</span><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-[var(--betanor-blue)]">Betanor Mail</p><h1 className="mt-1 truncate text-lg font-semibold text-[var(--betanor-navy)] sm:text-xl">{account.mailbox.email_address}</h1><p className="mt-1 truncate text-[11px] text-[var(--betanor-muted)]">{account.mailbox.status !== "CONNECTED" ? "Mailbox disconnected" : account.mailbox.last_synced_at ? `Last synced ${dateLabel(account.mailbox.last_synced_at)}` : "Mailbox connected · sync to load your messages"}</p></div></div>
       <div className="flex flex-wrap gap-1.5 sm:gap-2">
-        <button onClick={() => startCompose()} className="min-h-9 rounded-lg bg-[var(--betanor-navy)] px-3 text-xs font-semibold text-white hover:bg-[var(--betanor-blue)] sm:min-h-9">＋ Compose</button>
+        {canSendEmail ? <button onClick={() => startCompose()} className="min-h-9 rounded-lg bg-[var(--betanor-navy)] px-3 text-xs font-semibold text-white hover:bg-[var(--betanor-blue)] sm:min-h-9">＋ Compose</button> : null}
         <button onClick={() => void syncInbox()} disabled={busy || account.mailbox.status !== "CONNECTED"} className="min-h-9 rounded-lg border border-[var(--betanor-border)] bg-white px-3 text-xs font-semibold text-[var(--betanor-navy)] hover:bg-slate-50 disabled:opacity-50">{busy ? "Syncing…" : "↻ Sync"}</button>
         <button onClick={() => setSettingsOpen((value) => !value)} aria-expanded={settingsOpen} className="min-h-9 rounded-lg border border-[var(--betanor-border)] bg-white px-3 text-xs font-semibold text-[var(--betanor-navy)] hover:bg-slate-50">{settingsOpen ? "Hide settings" : "Settings"}</button>
       </div>
@@ -447,38 +473,38 @@ export function EmbeddedMailbox({ canManageSettings, canReadMailbox }: { canMana
         </form>
         {loading ? <p className="p-6 text-sm text-[var(--betanor-muted)]">Loading messages…</p> : messages.length ? <div className="max-h-[680px] overflow-y-auto">
           {messages.map((message) => <button key={message.id} onClick={() => void selectMessage(message)} className={`block w-full border-b border-[var(--betanor-border)] p-4 text-left transition-colors hover:bg-slate-50 ${selected?.id === message.id ? "bg-blue-50" : ""}`}>
-            <div className="flex min-w-0 items-start gap-2"><span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${message.is_read ? "bg-transparent" : "bg-[var(--betanor-blue)]"}`} /><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><span className={`truncate text-sm ${message.is_read ? "font-medium" : "font-bold"} text-[var(--betanor-navy)]`}>{folder === "INBOX" ? message.sender_name || message.sender_email : message.to_addresses?.[0] || message.sender_email}</span><time className="shrink-0 text-[10px] text-[var(--betanor-muted)]">{dateLabel(message.received_at || message.sent_at || message.created_at)}</time></div><p className="mt-1 truncate text-sm text-[var(--betanor-text)]">{message.subject || "(No subject)"}</p><p className="mt-1 truncate text-xs text-[var(--betanor-muted)]">{(message.body_text || "").replace(/\s+/g, " ").slice(0, 110) || addressLine(message)}</p></div><span className="text-xs text-amber-500">{message.is_starred ? "★" : ""}</span></div>
+            <div className="flex min-w-0 items-start gap-2"><span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${message.is_read ? "bg-transparent" : "bg-[var(--betanor-blue)]"}`} /><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><span className={`truncate text-sm ${message.is_read ? "font-medium" : "font-bold"} text-[var(--betanor-navy)]`}>{folder === "INBOX" ? message.sender_name || message.sender_email : message.to_addresses?.join(", ") || "No recipient recorded"}</span><time className="shrink-0 text-[10px] text-[var(--betanor-muted)]">{dateLabel(message.received_at || message.sent_at || message.created_at)}</time></div><p className="mt-1 truncate text-sm text-[var(--betanor-text)]">{message.subject || "(No subject)"}</p><p className="mt-1 truncate text-xs text-[var(--betanor-muted)]">{(message.body_text || "").replace(/\s+/g, " ").slice(0, 110) || addressLine(message)}</p>{message.status === "FAILED" ? <p className="mt-1 truncate text-[11px] font-semibold text-amber-800">Not sent · {message.delivery_error || "Delivery failed"}</p> : null}</div><span className="text-xs text-amber-500">{message.is_starred ? "★" : ""}</span></div>
             {message.attachments?.length ? <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[10px] text-[var(--betanor-muted)]">⌁ {message.attachments.length} attachment{message.attachments.length === 1 ? "" : "s"}</span> : null}
           </button>)}
         </div> : <div className="px-5 py-14 text-center"><p className="text-sm font-semibold text-[var(--betanor-navy)]">No messages here</p><p className="mt-1 text-xs text-[var(--betanor-muted)]">Use Sync inbox to retrieve recent mail.</p></div>}
         {!loading && totalMessages > 0 ? <div className="flex items-center justify-between border-t border-[var(--betanor-border)] px-3 py-2 text-xs text-[var(--betanor-muted)]"><span>{(page - 1) * 50 + 1}–{Math.min(page * 50, totalMessages)} of {totalMessages}</span><div className="flex gap-1"><button disabled={page <= 1} onClick={() => void loadMessages(folder, search, page - 1)} className="rounded-md border border-[var(--betanor-border)] px-2 py-1 disabled:opacity-40">Previous</button><button disabled={page >= totalPages} onClick={() => void loadMessages(folder, search, page + 1)} className="rounded-md border border-[var(--betanor-border)] px-2 py-1 disabled:opacity-40">Next</button></div></div> : null}
       </section>
 
-      <section aria-label="Message detail" className={`${selected || compose ? "" : "hidden lg:flex"} min-w-0 flex-col`}>
-        {compose ? <div className="flex h-full min-w-0 flex-col">
-          <div className="flex items-center justify-between border-b border-[var(--betanor-border)] px-4 py-3"><div><p className="font-semibold text-[var(--betanor-navy)]">{draftId ? "Edit draft" : "New message"}</p><p className="text-xs text-[var(--betanor-muted)]">From {account.mailbox.email_address}</p></div><button onClick={resetCompose} className="min-h-8 rounded-lg px-2 text-xs font-semibold text-[var(--betanor-muted)] hover:bg-slate-100">Close</button></div>
-          <div className="flex-1 space-y-3 overflow-auto p-4">
+      <section aria-label="Message detail" className={`${selected || compose ? "" : "hidden lg:flex"} min-h-[min(70dvh,680px)] min-w-0 flex-col lg:min-h-0`}>
+        {compose ? <div className="flex h-[min(70dvh,680px)] min-w-0 flex-col lg:h-full">
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--betanor-border)] px-4 py-3"><div className="min-w-0"><p className="font-semibold text-[var(--betanor-navy)]">{draftId ? "Edit draft" : "New message"}</p><p className="truncate text-xs text-[var(--betanor-muted)]">From {account.mailbox.email_address}</p></div><div className="flex shrink-0 items-center gap-2"><button disabled={busy || account.mailbox.status !== "CONNECTED" || !canSendEmail} onClick={() => void saveDraft(true)} className="min-h-9 rounded-lg bg-[var(--betanor-navy)] px-3 text-xs font-semibold text-white hover:bg-[var(--betanor-blue)] disabled:opacity-50">{busy ? "Sending…" : "Send"}</button><button onClick={resetCompose} className="min-h-9 rounded-lg px-2 text-xs font-semibold text-[var(--betanor-muted)] hover:bg-slate-100">Close</button></div></div>
+          <div className="min-h-0 flex-1 space-y-3 overflow-auto p-4">
             <label className="relative block pr-3 text-xs font-semibold text-[var(--betanor-muted)]">To<span aria-hidden="true" className="absolute top-0 right-0 text-[var(--betanor-danger)]">*</span><input value={to} onChange={(event) => setTo(event.target.value)} className="mt-1 min-h-10 w-full rounded-lg border border-[var(--betanor-field-border)] px-3 text-sm text-[var(--betanor-text)]" placeholder="name@example.com; another@example.com" /><span className="mt-1 block text-[10px] font-normal">Required before sending; drafts can be saved without recipients.</span></label>
             <details open={Boolean(cc || bcc)} className="rounded-lg border border-[var(--betanor-border)]"><summary className="min-h-9 cursor-pointer list-none px-3 py-2 text-xs font-semibold text-[var(--betanor-blue)] [&::-webkit-details-marker]:hidden">Add Cc or Bcc</summary><div className="grid gap-3 border-t border-[var(--betanor-border)] p-3 sm:grid-cols-2"><label className="text-xs font-semibold text-[var(--betanor-muted)]">Cc<input value={cc} onChange={(event) => setCc(event.target.value)} className="mt-1 min-h-9 w-full rounded-lg border border-[var(--betanor-field-border)] px-3 text-sm text-[var(--betanor-text)]" /></label><label className="text-xs font-semibold text-[var(--betanor-muted)]">Bcc<input value={bcc} onChange={(event) => setBcc(event.target.value)} className="mt-1 min-h-9 w-full rounded-lg border border-[var(--betanor-field-border)] px-3 text-sm text-[var(--betanor-text)]" /></label></div></details>
-            <div className="space-y-2"><label className="block text-xs font-semibold text-[var(--betanor-muted)]">Subject<input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={250} className="mt-1 min-h-10 w-full rounded-lg border border-[var(--betanor-field-border)] px-3 text-sm text-[var(--betanor-text)]" /></label><AiProofreadButton contentType="email" value={subject} onUse={setSubject} label="Check subject" /></div>
-            <div className="space-y-2"><label className="block text-xs font-semibold text-[var(--betanor-muted)]">Message<textarea value={body} onChange={(event) => setBody(event.target.value)} rows={12} maxLength={100000} className="mt-1 min-h-[240px] w-full resize-y rounded-lg border border-[var(--betanor-field-border)] px-3 py-2 text-sm leading-6 text-[var(--betanor-text)]" placeholder="Write your message…" /></label><AiProofreadButton contentType="email" value={body} onUse={setBody} /></div>
+            <label className="block text-xs font-semibold text-[var(--betanor-muted)]">Subject<input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={250} className="mt-1 min-h-10 w-full rounded-lg border border-[var(--betanor-field-border)] px-3 text-sm text-[var(--betanor-text)]" /></label>
+            <label className="block text-xs font-semibold text-[var(--betanor-muted)]">Message<textarea value={body} onChange={(event) => setBody(event.target.value)} rows={12} maxLength={100000} className="mt-1 min-h-[240px] w-full resize-y rounded-lg border border-[var(--betanor-field-border)] px-3 py-2 text-sm leading-6 text-[var(--betanor-text)]" placeholder="Write your message…" /></label>
             <div className="flex flex-wrap items-center gap-2"><label className="cursor-pointer rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold text-[var(--betanor-navy)] hover:bg-slate-50">＋ Attach files<input type="file" multiple className="sr-only" onChange={(event) => { const selectedFiles = Array.from(event.target.files ?? []); setFiles((current) => [...current, ...selectedFiles]); event.target.value = ""; }} /></label><span className="text-xs text-[var(--betanor-muted)]">Up to {Math.min(50, Math.floor(account.settings.maxAttachmentBytes / (1024 * 1024)))} MB each, within the combined message limit · resumable upload</span></div>
             {files.length ? <ul className="space-y-1">{files.map((file, index) => <li key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs"><span className="truncate">{file.name} · {friendlyBytes(file.size)}</span><button aria-label={`Remove ${file.name}`} onClick={() => setFiles((current) => current.filter((_, currentIndex) => currentIndex !== index))} className="ml-3 text-rose-700">Remove</button></li>)}</ul> : null}
             {draftAttachments.length ? <ul className="space-y-1">{draftAttachments.map((attachment) => <li key={attachment.id} className="text-xs text-[var(--betanor-muted)]">Attached: {attachment.file_name} · {friendlyBytes(Number(attachment.size_bytes))}</li>)}</ul> : null}
             <p className="text-xs text-[var(--betanor-muted)]">Your saved signature will be appended when sending.</p>
           </div>
-          <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--betanor-border)] p-3"><button disabled={busy} onClick={() => void saveDraft(false)} className="min-h-9 rounded-lg border border-[var(--betanor-border)] px-3 text-xs font-semibold text-[var(--betanor-navy)] disabled:opacity-50">{busy ? "Saving…" : "Save draft"}</button><button disabled={busy || account.mailbox.status !== "CONNECTED"} onClick={() => void saveDraft(true)} className="min-h-9 rounded-lg bg-[var(--betanor-navy)] px-4 text-xs font-semibold text-white hover:bg-[var(--betanor-blue)] disabled:opacity-50">{busy ? "Sending…" : "Send"}</button></div>
+          <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-[var(--betanor-border)] bg-white/95 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur"><button disabled={busy} onClick={() => void saveDraft(false)} className="min-h-10 rounded-lg border border-[var(--betanor-border)] px-4 text-xs font-semibold text-[var(--betanor-navy)] disabled:opacity-50">{busy ? "Saving…" : "Save draft"}</button>{canSendEmail ? <button disabled={busy || account.mailbox.status !== "CONNECTED"} onClick={() => void saveDraft(true)} className="min-h-10 rounded-lg bg-[var(--betanor-navy)] px-5 text-xs font-semibold text-white hover:bg-[var(--betanor-blue)] disabled:opacity-50">{busy ? "Sending…" : "Send email"}</button> : null}</div>
         </div> : selected ? <div className="flex h-full min-w-0 flex-col">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--betanor-border)] px-4 py-3"><button onClick={() => setSelected(null)} className="rounded-lg px-2 py-2 text-sm text-[var(--betanor-muted)] hover:bg-slate-100 lg:hidden">← Messages</button><div className="flex flex-wrap gap-1"><button onClick={() => startCompose(selected, "reply")} className="rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold hover:bg-slate-50">Reply</button><button onClick={() => startCompose(selected, "replyAll")} className="rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold hover:bg-slate-50">Reply all</button><button onClick={() => startCompose(selected, "forward")} className="rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold hover:bg-slate-50">Forward</button></div><button onClick={() => void messageAction(selected.is_starred ? "unstar" : "star")} aria-label={selected.is_starred ? "Remove star" : "Star message"} className="rounded-lg px-3 py-2 text-lg text-amber-500 hover:bg-amber-50">{selected.is_starred ? "★" : "☆"}</button></div>
-          <article className="min-w-0 flex-1 overflow-auto p-4 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xl font-semibold leading-snug text-[var(--betanor-navy)]">{selected.subject || "(No subject)"}</p><p className="mt-2 text-sm font-semibold text-[var(--betanor-text)]">{selected.sender_name} <span className="font-normal text-[var(--betanor-muted)]">&lt;{selected.sender_email}&gt;</span></p><p className="mt-1 break-all text-xs text-[var(--betanor-muted)]">To: {(selected.to_addresses ?? []).join(", ") || account.mailbox.email_address}{selected.cc_addresses?.length ? ` · Cc: ${selected.cc_addresses.join(", ")}` : ""}</p></div><time className="text-xs text-[var(--betanor-muted)]">{dateLabel(selected.received_at || selected.sent_at || selected.created_at)}</time></div>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--betanor-border)] px-4 py-3"><button onClick={() => setSelected(null)} className="rounded-lg px-2 py-2 text-sm text-[var(--betanor-muted)] hover:bg-slate-100 lg:hidden">← Messages</button><div className="flex flex-wrap gap-1">{canSendEmail && selected.status !== "DRAFT" ? <><button onClick={() => startCompose(selected, "reply")} className="rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold hover:bg-slate-50">Reply</button><button onClick={() => startCompose(selected, "replyAll")} className="rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold hover:bg-slate-50">Reply all</button><button onClick={() => startCompose(selected, "forward")} className="rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold hover:bg-slate-50">Forward</button></> : null}</div><button onClick={() => void messageAction(selected.is_starred ? "unstar" : "star")} aria-label={selected.is_starred ? "Remove star" : "Star message"} className="rounded-lg px-3 py-2 text-lg text-amber-500 hover:bg-amber-50">{selected.is_starred ? "★" : "☆"}</button></div>
+          <article className="min-h-0 min-w-0 flex-1 overflow-auto p-4 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xl font-semibold leading-snug text-[var(--betanor-navy)]">{selected.subject || "(No subject)"}</p><p className="mt-2 text-sm font-semibold text-[var(--betanor-text)]">{selected.sender_name} <span className="font-normal text-[var(--betanor-muted)]">&lt;{selected.sender_email}&gt;</span></p><p className="mt-1 break-all text-xs text-[var(--betanor-muted)]">To: {(selected.to_addresses ?? []).join(", ") || (selected.status === "RECEIVED" ? account.mailbox.email_address : "No recipient recorded")}{selected.cc_addresses?.length ? ` · Cc: ${selected.cc_addresses.join(", ")}` : ""}</p></div><time className="text-xs text-[var(--betanor-muted)]">{dateLabel(selected.received_at || selected.sent_at || selected.created_at)}</time></div>
             <div className="mt-8 whitespace-pre-wrap break-words text-sm leading-7 text-[var(--betanor-text)]">{selected.body_text || "This message has no text preview."}</div>
             {selected.attachments?.length ? <div className="mt-8 border-t border-[var(--betanor-border)] pt-4"><h2 className="text-xs font-bold uppercase tracking-wide text-[var(--betanor-muted)]">Attachments ({selected.attachments.length})</h2><ul className="mt-3 flex flex-wrap gap-2">{selected.attachments.map((attachment) => <li key={attachment.id}><a href={`/api/mailbox/attachments/${attachment.id}`} className="flex max-w-full items-center gap-2 rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs text-[var(--betanor-blue)] hover:bg-slate-50"><span className="truncate">{attachment.file_name}</span><span className="shrink-0 text-[var(--betanor-muted)]">{friendlyBytes(Number(attachment.size_bytes))}</span></a></li>)}</ul></div> : null}
           </article>
-          <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--betanor-border)] p-3"><button onClick={() => void messageAction(selected.is_read ? "unread" : "read")} className="rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold hover:bg-slate-50">Mark {selected.is_read ? "unread" : "read"}</button>{folder === "TRASH" || folder === "ARCHIVE" ? <button onClick={() => void messageAction("restore")} className="rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold hover:bg-slate-50">Restore to {selected.status === "SENT" ? "sent" : "inbox"}</button> : <button onClick={() => void messageAction("archive")} className="rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold hover:bg-slate-50">Archive</button>}<button onClick={() => void messageAction("trash")} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">Move to trash</button>{selected.status === "DRAFT" ? <button onClick={() => startCompose(selected, "edit")} className="rounded-lg bg-[var(--betanor-navy)] px-3 py-2 text-xs font-semibold text-white">Edit draft</button> : null}</div>
+          <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--betanor-border)] p-3"><button onClick={() => void messageAction(selected.is_read ? "unread" : "read")} className="rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold hover:bg-slate-50">Mark {selected.is_read ? "unread" : "read"}</button>{folder === "TRASH" || folder === "ARCHIVE" ? <button onClick={() => void messageAction("restore")} className="rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold hover:bg-slate-50">Restore to {selected.status === "SENT" ? "sent" : "inbox"}</button> : <button onClick={() => void messageAction("archive")} className="rounded-lg border border-[var(--betanor-border)] px-3 py-2 text-xs font-semibold hover:bg-slate-50">Archive</button>}<button onClick={() => void messageAction("trash")} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">Move to trash</button>{selected.status === "DRAFT" && canSendEmail ? <button onClick={() => startCompose(selected, "edit")} className="rounded-lg bg-[var(--betanor-navy)] px-3 py-2 text-xs font-semibold text-white">Edit draft</button> : null}</div>
         </div> : <div className="hidden flex-1 flex-col items-center justify-center p-8 text-center lg:flex"><div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-3xl text-[var(--betanor-blue)]">✉</div><p className="mt-4 text-lg font-semibold text-[var(--betanor-navy)]">Select a message</p><p className="mt-1 max-w-sm text-sm text-[var(--betanor-muted)]">Choose a message to read, reply, forward, archive, or download its attachments.</p></div>}
       </section>
     </div>
-    <div className="border-t border-[var(--betanor-border)] px-4 py-2 text-[10px] text-[var(--betanor-muted)]">{account.mailbox.status === "CONNECTED" ? "Inbox checks while this page is open every 5 minutes." : "Mailbox is disconnected; synchronized messages remain available."} Large uploads resume automatically; provider email-size limits may be lower than the portal limit.</div>
+    <div className="border-t border-[var(--betanor-border)] px-4 py-2 text-[10px] text-[var(--betanor-muted)]">{account.mailbox.status === "CONNECTED" ? `Inbox checks while this page is open every ${lowDataMode ? "15" : "5"} minutes.` : "Mailbox is disconnected; synchronized messages remain available."} Large uploads resume automatically; provider email-size limits may be lower than the portal limit.</div>
   </section>;
 }
 

@@ -190,14 +190,14 @@ export async function POST(request: Request) {
     if (sentUpdateError) return NextResponse.json({ id: message.id, status: "SENT", error: "Email was accepted by the mail server but its portal log could not be updated." }, { status: 202 });
     return NextResponse.json({ id: message.id, status: "SENT" }, { status: 201 });
   } catch (error) {
-    const { error: updateError } = await supabase.from("email_messages")
-      .update({ status: "FAILED", mail_folder: "SENT", delivery_error: "SMTP delivery failed. Check the mailbox settings and retry." })
+    await supabase.from("email_messages")
+      .update({ status: "DRAFT", mail_folder: "DRAFTS", delivery_error: "SMTP delivery failed. This message remains a draft; check the mail settings and retry." })
       .eq("id", message.id)
       .eq("status", "DRAFT");
     console.error("Betanor outbound email delivery failed", error instanceof Error ? error.name : "unknown");
     return NextResponse.json({
       id: message.id,
-      status: updateError ? "DRAFT" : "FAILED",
+      status: "DRAFT",
       error: "The message could not be delivered. It has been kept in the email register.",
     }, { status: 502 });
   }

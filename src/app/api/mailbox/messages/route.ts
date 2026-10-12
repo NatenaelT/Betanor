@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   }
   const search = (url.searchParams.get("search") || "").trim().replace(/[,%()]/g, " ").slice(0, 80);
   let query = supabase.from("email_messages")
-    .select("id,sender_profile_id,sender_email,sender_name,to_addresses,cc_addresses,subject,status,mail_folder,received_at,sent_at,created_at,is_read,is_starred,parent_message_id,rfc_message_id", { count: "exact" })
+    .select("id,sender_profile_id,sender_email,sender_name,to_addresses,cc_addresses,subject,body_text,status,delivery_error,mail_folder,received_at,sent_at,created_at,is_read,is_starred,parent_message_id,rfc_message_id", { count: "exact" })
     .eq("workspace_id", access.workspaceId)
     .eq("mailbox_id", mailbox.id)
     .eq("mail_folder", folder)
@@ -48,8 +48,9 @@ export async function GET(request: Request) {
     attachmentsByMessage.set(attachment.email_message_id, [...(attachmentsByMessage.get(attachment.email_message_id) ?? []), attachment]);
   }
   return NextResponse.json({
-    messages: (messages ?? []).map((message: { id: string }) => ({
+    messages: (messages ?? []).map((message: { id: string; body_text?: string | null }) => ({
       ...message,
+      body_text: message.body_text?.replace(/\s+/g, " ").slice(0, 180) || "",
       attachments: attachmentsByMessage.get(message.id) ?? [],
     })),
     page,

@@ -59,6 +59,14 @@ export async function PATCH(request: NextRequest) {
   const surface = body?.surface === "customer" ? "customer" : "staff";
   const access = await notificationAccess(supabase, surface);
   if (!access?.userId) return NextResponse.json({ error: "Notification access required." }, { status: 403 });
+  if (body?.action === "read_all") {
+    let query = supabase.from("notifications").update({ read_at: new Date().toISOString() })
+      .eq("recipient_id", access.userId).is("read_at", null);
+    if (surface === "customer") query = query.eq("entity_type", "support_ticket");
+    const { data, error } = await query.select("id");
+    if (error) return NextResponse.json({ error: "Notifications could not be marked as read." }, { status: 500 });
+    return NextResponse.json({ updated: data?.length ?? 0 });
+  }
   const id = typeof body?.id === "string" ? body.id : "";
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) || typeof body?.read !== "boolean") return NextResponse.json({ error: "Invalid notification update." }, { status: 400 });
   if (surface === "customer") {
@@ -80,4 +88,20 @@ export async function PATCH(request: NextRequest) {
   if (error) return NextResponse.json({ error: "Notification could not be updated." }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Notification not found." }, { status: 404 });
   return NextResponse.json(data);
+}
+
+export async function DELETE(request: NextRequest) {
+  const supabase = await createClient();
+  const body = await request.json().catch(() => null);
+  if (body?.surface !== "staff" && body?.surface !== "customer") {
+    return NextResponse.json({ error: "Choose a valid notification inbox." }, { status: 400 });
+  }
+  const surface = body.surface as "staff" | "customer";
+  const access = await notificationAccess(supabase, surface);
+  if (!access?.userId) return NextResponse.json({ error: "Notification access required." }, { status: 403 });
+  let query = supabase.from("notifications").delete().eq("recipient_id", access.userId);
+  if (surface === "customer") query = query.eq("entity_type", "support_ticket");
+  const { data, error } = await query.select("id");
+  if (error) return NextResponse.json({ error: "Notifications could not be cleared." }, { status: 500 });
+  return NextResponse.json({ deleted: data?.length ?? 0 });
 }

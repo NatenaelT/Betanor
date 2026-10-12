@@ -11,6 +11,6 @@ export default async function MailboxPage() {
   const access = await resolveWorkspace(supabase);
   if (!access.workspaceId || !access.hasStaffRole || !access.permissions.has("email.read") && !access.permissions.has("email.manage")) redirect("/workspace");
   return <main className="mx-auto max-w-[1600px] px-3 py-5 sm:px-5 lg:px-8 lg:py-8">
-    <EmbeddedMailbox canManageSettings={access.permissions.has("email.manage")} canReadMailbox={access.permissions.has("email.read")} />
+    <EmbeddedMailbox canManageSettings={access.permissions.has("email.manage")} canReadMailbox={access.permissions.has("email.read")} canSendEmail={access.permissions.has("email.send")} />
   </main>;
 }
