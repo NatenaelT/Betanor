@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { parseApplicationFormSchema } from "@/lib/recruitment/forms";
+import { calculateRecruitmentScore, parseRecruitmentRubric, parseRecruitmentThreshold, recruitmentPanelResult, type RecruitmentEvaluationItem, type RecruitmentStage } from "@/lib/recruitment/rubrics";
 import { createClient } from "@/lib/supabase/server";
 import { resolveWorkspace } from "@/lib/workspace-context";
 
@@ -15,7 +16,18 @@ type CandidateDocument = { id: string; resume_path: string | null; cover_letter_
 type OpeningApplication = { candidate_id: string; form_responses: Record<string, unknown> | null; candidates: CandidateDocument | CandidateDocument[] | null };
 type VacancyDeleteRecord = { job_applications: OpeningApplication[] | null };
 type ApplicationReference = { candidate_id: string; job_opening_id: string };
-type ApplicationForReview = { id: string; candidate_id: string; job_openings: { workspace_id: string } | { workspace_id: string }[] | null };
+type ApplicationForReview = {
+  id: string;
+  candidate_id: string;
+  stage: string;
+  job_openings: {
+    workspace_id: string; shortlisting_rubric: unknown; interview_rubric: unknown;
+    shortlisting_threshold: number; interview_threshold: number;
+  } | {
+    workspace_id: string; shortlisting_rubric: unknown; interview_rubric: unknown;
+    shortlisting_threshold: number; interview_threshold: number;
+  }[] | null;
+};
 
 function clean(value: FormDataEntryValue | null, limit = 10000) {
   return typeof value === "string" ? value.trim().slice(0, limit) : "";
@@ -80,6 +92,10 @@ async function parsePostingFields(data: FormData, workspaceId: string, supabase:
     requirements: clean(data.get("requirements")) || null,
     application_instructions: clean(data.get("instructions"), 5000) || null,
     application_form_schema: parseApplicationFormSchema(data.get("applicationFormSchema")),
+    shortlisting_rubric: parseRecruitmentRubric(data.get("shortlistingRubric"), "shortlisting"),
+    interview_rubric: parseRecruitmentRubric(data.get("interviewRubric"), "interview"),
+    shortlisting_threshold: parseRecruitmentThreshold(data.get("shortlistingThreshold"), "Shortlisting threshold"),
+    interview_threshold: parseRecruitmentThreshold(data.get("interviewThreshold"), "Interview threshold"),
   };
 }
 
@@ -101,11 +117,20 @@ export async function saveVacancy(data: FormData) {
     const shared = await parsePostingFields(data, workspaceId, supabase);
     const openingId = clean(data.get("openingId"), 80);
     const suppliedCode = clean(data.get("code"), 50);
-    let existingOpening: { code: string | null; published_at: string | null } | null = null;
+    let existingOpening: { code: string | null; published_at: string | null; shortlisting_rubric: unknown; interview_rubric: unknown; shortlisting_threshold: number; interview_threshold: number } | null = null;
     if (openingId) {
-      const { data: currentOpening, error } = await supabase.from("job_openings").select("code,published_at").eq("id", openingId).eq("workspace_id", workspaceId).maybeSingle();
+      const { data: currentOpening, error } = await supabase.from("job_openings").select("code,published_at,shortlisting_rubric,interview_rubric,shortlisting_threshold,interview_threshold").eq("id", openingId).eq("workspace_id", workspaceId).maybeSingle();
       if (error || !currentOpening) throw new Error("Vacancy not found or you do not have permission to update it.");
       existingOpening = currentOpening;
+      const rubricChanged = JSON.stringify(parseRecruitmentRubric(existingOpening.shortlisting_rubric, "shortlisting")) !== JSON.stringify(shared.shortlisting_rubric)
+        || JSON.stringify(parseRecruitmentRubric(existingOpening.interview_rubric, "interview")) !== JSON.stringify(shared.interview_rubric)
+        || existingOpening.shortlisting_threshold !== shared.shortlisting_threshold
+        || existingOpening.interview_threshold !== shared.interview_threshold;
+      if (rubricChanged) {
+        const { count, error: applicantCheckError } = await supabase.from("job_applications").select("id", { count: "exact", head: true }).eq("job_opening_id", openingId);
+        if (applicantCheckError) throw new Error("Applicants could not be checked safely. Scoring criteria were not changed; retry.");
+        if ((count ?? 0) > 0) throw new Error("Scoring rules are locked after the first application is received. Create a new vacancy to change them.");
+      }
     }
     const openingCode = suppliedCode || existingOpening?.code || `BTNR-JOB-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 5).toUpperCase()}`;
     const values = {
@@ -226,19 +251,151 @@ export async function deleteVacancy(data: FormData) {
   redirect(messagePath(route, "saved", "Vacancy deleted."));
 }
 
+type EvaluationOpening = {
+  workspace_id: string;
+  shortlisting_rubric: unknown;
+  interview_rubric: unknown;
+  shortlisting_threshold: number;
+  interview_threshold: number;
+};
+
+type EvaluationApplication = {
+  id: string;
+  stage: string;
+  job_openings: EvaluationOpening | EvaluationOpening[] | null;
+};
+
+async function hasPassingEvaluation(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  applicationId: string,
+  stage: RecruitmentStage,
+  rubric: ReturnType<typeof parseRecruitmentRubric>,
+  threshold: number,
+) {
+  const { data, error } = await supabase.from("job_application_evaluations")
+    .select("reviewer_id,total_score,evaluation_items,submitted_at")
+    .eq("application_id", applicationId)
+    .eq("stage", stage)
+    .order("submitted_at", { ascending: false });
+  if (error) return false;
+  return recruitmentPanelResult(rubric, data ?? [], threshold).meetsThreshold;
+}
+
+export async function submitRecruitmentEvaluation(data: FormData) {
+  const route = destination(data);
+  const applicationId = clean(data.get("applicationId"), 80);
+  const stageValue = clean(data.get("evaluationStage"), 30);
+  const { supabase, workspaceId, userId } = await requireRecruitmentAccess();
+  if (!workspaceId || !userId) redirect("/workspace");
+  if (!applicationId || (stageValue !== "shortlisting" && stageValue !== "interview")) redirect(messagePath(route, "error", "Choose a valid evaluation stage."));
+  const stage = stageValue as RecruitmentStage;
+
+  try {
+    const { data: applicationData, error: applicationError } = await supabase.from("job_applications")
+      .select("id,stage,job_openings!inner(workspace_id,shortlisting_rubric,interview_rubric,shortlisting_threshold,interview_threshold)")
+      .eq("id", applicationId)
+      .maybeSingle();
+    const application = applicationData as unknown as EvaluationApplication | null;
+    const opening = Array.isArray(application?.job_openings) ? application.job_openings[0] : application?.job_openings;
+    if (applicationError || !application || !opening || opening.workspace_id !== workspaceId) throw new Error("Application not found or access denied.");
+    if (stage === "shortlisting" && !["applied", "screening", "shortlisted"].includes(application.stage)) throw new Error("This candidate is no longer in the shortlisting stage.");
+    if (stage === "interview" && !["shortlisted", "interview"].includes(application.stage)) throw new Error("Complete shortlisting and move the candidate to Interview before scoring the interview.");
+
+    const rubric = parseRecruitmentRubric(stage === "shortlisting" ? opening.shortlisting_rubric : opening.interview_rubric, stage);
+    const threshold = stage === "shortlisting" ? Number(opening.shortlisting_threshold) : Number(opening.interview_threshold);
+    const items: RecruitmentEvaluationItem[] = rubric.map((criterion, index) => {
+      const ratingValue = clean(data.get(`rating_${index}`), 2);
+      const evidence = clean(data.get(`evidence_${index}`), 1200);
+      if (!/^[0-5]$/.test(ratingValue)) throw new Error(`Choose a 0–5 rating for “${criterion.label}”.`);
+      if (evidence.length < 20) throw new Error(`Add specific evidence of at least 20 characters for “${criterion.label}”.`);
+      return { criterion_key: criterion.key, rating: Number(ratingValue), evidence };
+    });
+    const { total, unmetGates } = calculateRecruitmentScore(rubric, items);
+    const recommendation = unmetGates.length ? "gate_not_met" : total >= threshold ? "meets_threshold" : "below_threshold";
+    const { error: insertError } = await supabase.from("job_application_evaluations").insert({
+      workspace_id: workspaceId,
+      application_id: applicationId,
+      stage,
+      reviewer_id: userId,
+      rubric_snapshot: rubric,
+      evaluation_items: items,
+      threshold_score: threshold,
+      total_score: total,
+      recommendation,
+    });
+    if (insertError) throw new Error(insertError.message);
+  } catch (error) {
+    redirect(messagePath(route, "error", error instanceof Error ? error.message : "Evaluation could not be saved."));
+  }
+
+  revalidatePath("/workspace/recruitment/shortlisting");
+  revalidatePath("/workspace/recruitment/interviews");
+  redirect(messagePath(route, "saved", "Evidence-based evaluation saved. The score and threshold recommendation were calculated from the vacancy rubric."));
+}
+
+type ApplicationForDocumentPreview = {
+  form_responses: Record<string, unknown> | null;
+  candidates: CandidateDocument | CandidateDocument[] | null;
+  job_openings: { workspace_id: string } | { workspace_id: string }[] | null;
+};
+
+export async function createApplicantDocumentPreviewLink(applicationId: string, path: string) {
+  const { supabase, workspaceId } = await requireRecruitmentAccess();
+  if (!workspaceId) return { error: "You do not have permission to view applicant documents." };
+  if (typeof applicationId !== "string" || applicationId.length > 80 || typeof path !== "string" || path.length > 300 || !path.startsWith("intake/")) {
+    return { error: "The requested applicant document is invalid." };
+  }
+
+  const { data, error } = await supabase.from("job_applications")
+    .select("form_responses,candidates!inner(resume_path,cover_letter_path),job_openings!inner(workspace_id)")
+    .eq("id", applicationId)
+    .maybeSingle();
+  const application = data as unknown as ApplicationForDocumentPreview | null;
+  const opening = Array.isArray(application?.job_openings) ? application.job_openings[0] : application?.job_openings;
+  if (error || !application || !opening || opening.workspace_id !== workspaceId) return { error: "Applicant document not found or access denied." };
+  const candidate = Array.isArray(application.candidates) ? application.candidates[0] : application.candidates;
+  const formPaths = Object.values(application.form_responses ?? {}).flatMap((value) => Array.isArray(value) ? value : [value]);
+  const allowedPaths = [candidate?.resume_path, candidate?.cover_letter_path, ...formPaths]
+    .filter((value): value is string => typeof value === "string" && value.startsWith("intake/"));
+  if (!allowedPaths.includes(path)) return { error: "This file is not attached to the selected application." };
+
+  const { data: signed, error: signingError } = await supabase.storage.from("betanor-candidate-documents").createSignedUrl(path, 300);
+  if (signingError || !signed?.signedUrl) return { error: "The private applicant file could not be opened. Please retry." };
+  return { signedUrl: signed.signedUrl };
+}
+
 export async function reviewApplication(data: FormData) {
   const route = destination(data);
   const applicationId = clean(data.get("applicationId"), 80);
   const stage = clean(data.get("stage"), 30);
-  const { supabase, workspaceId } = await requireRecruitmentAccess();
-  if (!workspaceId) redirect("/workspace");
+  const { supabase, workspaceId, userId } = await requireRecruitmentAccess();
+  if (!workspaceId || !userId) redirect("/workspace");
   if (!applicationId || !stages.has(stage)) redirect(messagePath(route, "error", "Choose a valid application stage."));
 
   const { data: applicationData, error: applicationError } = await supabase.from("job_applications")
-    .select("id,candidate_id,job_openings!inner(workspace_id)").eq("id", applicationId).maybeSingle();
+    .select("id,candidate_id,stage,job_openings!inner(workspace_id,shortlisting_rubric,interview_rubric,shortlisting_threshold,interview_threshold)").eq("id", applicationId).maybeSingle();
   const application = applicationData as unknown as ApplicationForReview | null;
   const opening = Array.isArray(application?.job_openings) ? application.job_openings[0] : application?.job_openings;
-  if (applicationError || !application || opening?.workspace_id !== workspaceId) redirect(messagePath(route, "error", "Application not found or access denied."));
+  if (applicationError || !application || !opening || opening.workspace_id !== workspaceId) redirect(messagePath(route, "error", "Application not found or access denied."));
+
+  if (stage === "shortlisted" && !["applied", "screening", "shortlisted"].includes(application.stage)) {
+    redirect(messagePath(route, "error", "Only an active applicant in screening can advance to shortlisting."));
+  }
+  if (stage === "shortlisted" && application.stage !== "shortlisted" && !(await hasPassingEvaluation(supabase, applicationId, "shortlisting", parseRecruitmentRubric(opening.shortlisting_rubric, "shortlisting"), Number(opening.shortlisting_threshold)))) {
+    redirect(messagePath(route, "error", "A passing, evidence-complete shortlisting evaluation is required before advancing this candidate."));
+  }
+  if (stage === "interview" && !["shortlisted", "interview"].includes(application.stage)) {
+    redirect(messagePath(route, "error", "Only a shortlisted candidate can advance to interview."));
+  }
+  if (stage === "interview" && application.stage !== "interview" && !(await hasPassingEvaluation(supabase, applicationId, "shortlisting", parseRecruitmentRubric(opening.shortlisting_rubric, "shortlisting"), Number(opening.shortlisting_threshold)))) {
+    redirect(messagePath(route, "error", "A passing shortlisting evaluation is required before scheduling an interview."));
+  }
+  if (["offered", "hired"].includes(stage) && !["interview", "offered", "hired"].includes(application.stage)) {
+    redirect(messagePath(route, "error", "Complete the interview stage before making an offer or hire."));
+  }
+  if (["offered", "hired"].includes(stage) && !["offered", "hired"].includes(application.stage) && !(await hasPassingEvaluation(supabase, applicationId, "interview", parseRecruitmentRubric(opening.interview_rubric, "interview"), Number(opening.interview_threshold)))) {
+    redirect(messagePath(route, "error", "A passing, evidence-complete interview evaluation is required before an offer or hire."));
+  }
 
   const firstName = clean(data.get("firstName"), 100);
   const lastName = clean(data.get("lastName"), 100);
@@ -254,17 +411,13 @@ export async function reviewApplication(data: FormData) {
     if (Number.isNaN(parsedInterview.valueOf())) redirect(messagePath(route, "error", "Enter a valid interview date and time."));
     interviewAt = parsedInterview.toISOString();
   }
-  const scoreValue = clean(data.get("score"), 12);
-  const score = scoreValue ? Number(scoreValue) : null;
-  if (score !== null && (!Number.isFinite(score) || score < 0 || score > 100)) redirect(messagePath(route, "error", "Review score must be between 0 and 100."));
   const { error } = await supabase.from("job_applications").update({
     stage,
-    score,
     notes: clean(data.get("notes"), 4000) || null,
     interview_at: interviewAt,
     interview_location: clean(data.get("interviewLocation"), 500) || null,
     interview_notes: clean(data.get("interviewNotes"), 4000) || null,
-    reviewed_by: workspaceId ? (await resolveWorkspace(supabase)).userId : null,
+    reviewed_by: userId,
     reviewed_at: new Date().toISOString(),
   }).eq("id", applicationId);
   if (error) redirect(messagePath(route, "error", error.message));

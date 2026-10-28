@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FieldLabel, Input } from "@/components/ui/input";
+import { RubricEditor } from "@/components/recruitment/rubric-editor";
 import {
   APPLICATION_FIELD_TYPES,
   applicationFieldConditionValues,
@@ -11,6 +12,7 @@ import {
   type ApplicationFormField,
   type ApplicationFieldType,
 } from "@/lib/recruitment/forms";
+import { DEFAULT_INTERVIEW_RUBRIC, DEFAULT_SHORTLIST_RUBRIC, type RecruitmentCriterion } from "@/lib/recruitment/rubrics";
 
 type Choice = { id: string; label: string; departmentId?: string | null };
 type VacancyValues = {
@@ -32,6 +34,10 @@ type VacancyValues = {
   instructions?: string | null;
   status?: string | null;
   applicationFormSchema?: ApplicationFormField[] | null;
+  shortlistingRubric?: RecruitmentCriterion[] | null;
+  interviewRubric?: RecruitmentCriterion[] | null;
+  shortlistingThreshold?: number | null;
+  interviewThreshold?: number | null;
 };
 
 const choiceTypes = new Set<ApplicationFieldType>(["dropdown", "radio", "checkboxes"]);
@@ -57,6 +63,8 @@ export function VacancyForm({
   const isTemplate = mode === "template";
   const [schema, setSchema] = useState<ApplicationFormField[]>(opening.applicationFormSchema ?? []);
   const [departmentId, setDepartmentId] = useState(opening.departmentId ?? "");
+  const [shortlistingThreshold, setShortlistingThreshold] = useState(opening.shortlistingThreshold ?? 70);
+  const [interviewThreshold, setInterviewThreshold] = useState(opening.interviewThreshold ?? 70);
 
   function patchField(index: number, patch: Partial<ApplicationFormField>) {
     setSchema((current) => {
@@ -156,6 +164,19 @@ export function VacancyForm({
       <div className="sm:col-span-2"><FieldLabel htmlFor={`${isTemplate ? "template-instructions" : "vacancy-instructions"}-${opening.id ?? "new"}`}>Application instructions</FieldLabel><textarea id={`${isTemplate ? "template-instructions" : "vacancy-instructions"}-${opening.id ?? "new"}`} name="instructions" defaultValue={opening.instructions ?? ""} rows={2} maxLength={5000} className="w-full rounded-lg border border-[var(--betanor-border)] bg-white px-3 py-2 text-sm" /></div>
       {!isTemplate ? <div><FieldLabel htmlFor={`vacancy-status-${opening.id ?? "new"}`}>Publication status</FieldLabel><select id={`vacancy-status-${opening.id ?? "new"}`} name="status" defaultValue={opening.status ?? "draft"} className="min-h-10 w-full rounded-lg border border-[var(--betanor-border)] bg-white px-3 text-sm"><option value="draft">Draft — HR only</option><option value="active">Active — publish to Careers</option><option value="inactive">Inactive — unpublish</option><option value="archived">Archived</option></select></div> : null}
     </div>
+
+    <details className="rounded-xl border border-[var(--betanor-border)] bg-white p-4 shadow-sm sm:p-5">
+      <summary className="cursor-pointer font-semibold text-[var(--betanor-navy)]">Scoring criteria and interview standards <span className="ml-2 text-xs font-normal text-[var(--betanor-muted)]">Weighted, evidence-based, and vacancy-specific</span></summary>
+      <p className="mt-3 text-xs leading-5 text-[var(--betanor-muted)]">Set and publish criteria before reviewing applicants. The system uses the same 0–5 behaviorally anchored scale for every reviewer. Weights determine a score out of 100; a minimum-gate criterion below 3 blocks the threshold recommendation. Scores guide a documented human decision and never hire a candidate automatically.</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div><FieldLabel htmlFor={`shortlisting-threshold-${opening.id ?? "new"}`}>Shortlisting threshold (%)</FieldLabel><Input id={`shortlisting-threshold-${opening.id ?? "new"}`} name="shortlistingThreshold" type="number" min="0" max="100" step="1" value={shortlistingThreshold} onChange={(event) => setShortlistingThreshold(Number(event.target.value))} /></div>
+        <div><FieldLabel htmlFor={`interview-threshold-${opening.id ?? "new"}`}>Interview threshold (%)</FieldLabel><Input id={`interview-threshold-${opening.id ?? "new"}`} name="interviewThreshold" type="number" min="0" max="100" step="1" value={interviewThreshold} onChange={(event) => setInterviewThreshold(Number(event.target.value))} /></div>
+      </div>
+      <div className="mt-4 grid gap-4">
+        <RubricEditor stage="shortlisting" initial={opening.shortlistingRubric?.length ? opening.shortlistingRubric : DEFAULT_SHORTLIST_RUBRIC} />
+        <RubricEditor stage="interview" initial={opening.interviewRubric?.length ? opening.interviewRubric : DEFAULT_INTERVIEW_RUBRIC} />
+      </div>
+    </details>
 
     <section className="rounded-xl border border-[var(--betanor-border)] bg-slate-50/70 p-4 sm:p-5">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start"><div><h3 className="font-semibold text-[var(--betanor-navy)]">Applicant questions</h3><p className="mt-1 text-xs leading-5 text-[var(--betanor-muted)]">Choose from common field types, add conditional questions, and provide answer choices when needed. Every custom question is optional; applicants must provide only email and a CV/resume.</p></div><Button type="button" size="sm" variant="outline" onClick={addField} disabled={schema.length >= 25}>Add question</Button></div>
