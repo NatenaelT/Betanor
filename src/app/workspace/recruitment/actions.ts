@@ -9,10 +9,10 @@ import { resolveWorkspace } from "@/lib/workspace-context";
 const statusValues = new Set(["draft", "active", "inactive", "archived"]);
 const employmentTypes = new Set(["full_time", "part_time", "contract", "internship"]);
 const stages = new Set(["applied", "screening", "shortlisted", "interview", "offered", "hired", "rejected"]);
-const routes = new Set(["/workspace/recruitment", "/workspace/recruitment/shortlisting", "/workspace/recruitment/interviews"]);
+const routes = new Set(["/workspace/recruitment", "/workspace/recruitment/shortlisting", "/workspace/recruitment/interviews", "/workspace/recruitment/templates"]);
 
 type CandidateDocument = { id: string; resume_path: string | null; cover_letter_path: string | null };
-type OpeningApplication = { candidate_id: string; candidates: CandidateDocument | CandidateDocument[] | null };
+type OpeningApplication = { candidate_id: string; form_responses: Record<string, unknown> | null; candidates: CandidateDocument | CandidateDocument[] | null };
 type VacancyDeleteRecord = { job_applications: OpeningApplication[] | null };
 type ApplicationReference = { candidate_id: string; job_opening_id: string };
 type ApplicationForReview = { id: string; candidate_id: string; job_openings: { workspace_id: string } | { workspace_id: string }[] | null };
@@ -34,9 +34,9 @@ async function requireRecruitmentAccess() {
   const supabase = await createClient();
   const access = await resolveWorkspace(supabase);
   if (!access.userId || !access.workspaceId || !access.hasStaffRole || !access.permissions.has("recruitment.manage")) {
-    return { supabase, workspaceId: null };
+    return { supabase, workspaceId: null, userId: null };
   }
-  return { supabase, workspaceId: access.workspaceId };
+  return { supabase, workspaceId: access.workspaceId, userId: access.userId };
 }
 
 function parseDate(value: string, field: string) {
@@ -51,6 +51,36 @@ function parseAmount(value: string, field: string) {
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount < 0) throw new Error(`${field} must be zero or more.`);
   return amount;
+}
+
+async function parsePostingFields(data: FormData, workspaceId: string, supabase: Awaited<ReturnType<typeof createClient>>) {
+  const employmentType = clean(data.get("employmentType"), 30) || "full_time";
+  if (!employmentTypes.has(employmentType)) throw new Error("Choose a valid employment type.");
+  const salaryMin = parseAmount(clean(data.get("salaryMin"), 30), "Minimum salary");
+  const salaryMax = parseAmount(clean(data.get("salaryMax"), 30), "Maximum salary");
+  if (salaryMin !== null && salaryMax !== null && salaryMax < salaryMin) throw new Error("Maximum salary must be at least the minimum salary.");
+  const departmentId = clean(data.get("departmentId"), 80) || null;
+  const positionId = clean(data.get("positionId"), 80) || null;
+  if (departmentId) {
+    const { data: department } = await supabase.from("departments").select("id").eq("id", departmentId).eq("workspace_id", workspaceId).maybeSingle();
+    if (!department) throw new Error("Choose a department in this workspace.");
+  }
+  if (positionId) {
+    const { data: position } = await supabase.from("positions").select("id,department_id").eq("id", positionId).eq("workspace_id", workspaceId).maybeSingle();
+    if (!position || (departmentId && position.department_id && position.department_id !== departmentId)) throw new Error("Choose a position that belongs to the selected department.");
+  }
+  return {
+    department_id: departmentId,
+    position_id: positionId,
+    employment_type: employmentType,
+    workplace: clean(data.get("workplace"), 120) || "Not specified",
+    salary_min: salaryMin,
+    salary_max: salaryMax,
+    description: clean(data.get("description")) || null,
+    requirements: clean(data.get("requirements")) || null,
+    application_instructions: clean(data.get("instructions"), 5000) || null,
+    application_form_schema: parseApplicationFormSchema(data.get("applicationFormSchema")),
+  };
 }
 
 export async function saveVacancy(data: FormData) {
@@ -68,20 +98,7 @@ export async function saveVacancy(data: FormData) {
     const opensOn = parseDate(clean(data.get("opensOn"), 10), "Opening date");
     const closesOn = parseDate(clean(data.get("closesOn"), 10), "Application deadline");
     if (opensOn && closesOn && closesOn < opensOn) throw new Error("Application deadline must be on or after the opening date.");
-    const salaryMin = parseAmount(clean(data.get("salaryMin"), 30), "Minimum salary");
-    const salaryMax = parseAmount(clean(data.get("salaryMax"), 30), "Maximum salary");
-    if (salaryMin !== null && salaryMax !== null && salaryMax < salaryMin) throw new Error("Maximum salary must be at least the minimum salary.");
-    const departmentId = clean(data.get("departmentId"), 80) || null;
-    const positionId = clean(data.get("positionId"), 80) || null;
-    if (departmentId) {
-      const { data: department } = await supabase.from("departments").select("id").eq("id", departmentId).eq("workspace_id", workspaceId).maybeSingle();
-      if (!department) throw new Error("Choose a department in this workspace.");
-    }
-    if (positionId) {
-      const { data: position } = await supabase.from("positions").select("id,department_id").eq("id", positionId).eq("workspace_id", workspaceId).maybeSingle();
-      if (!position || (departmentId && position.department_id && position.department_id !== departmentId)) throw new Error("Choose a position that belongs to the selected department.");
-    }
-    const schema = parseApplicationFormSchema(data.get("applicationFormSchema"));
+    const shared = await parsePostingFields(data, workspaceId, supabase);
     const openingId = clean(data.get("openingId"), 80);
     const suppliedCode = clean(data.get("code"), 50);
     let existingOpening: { code: string | null; published_at: string | null } | null = null;
@@ -92,20 +109,11 @@ export async function saveVacancy(data: FormData) {
     }
     const openingCode = suppliedCode || existingOpening?.code || `BTNR-JOB-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 5).toUpperCase()}`;
     const values = {
-      department_id: departmentId,
-      position_id: positionId,
+      ...shared,
       title,
       code: openingCode,
-      employment_type: employmentType,
-      workplace: clean(data.get("workplace"), 120) || "Not specified",
-      salary_min: salaryMin,
-      salary_max: salaryMax,
       opens_on: opensOn,
       closes_on: closesOn,
-      description: clean(data.get("description")) || null,
-      requirements: clean(data.get("requirements")) || null,
-      application_instructions: clean(data.get("instructions"), 5000) || null,
-      application_form_schema: schema,
       status,
       published_at: status === "active" ? existingOpening?.published_at || new Date().toISOString() : null,
     };
@@ -121,8 +129,52 @@ export async function saveVacancy(data: FormData) {
   revalidatePath("/workspace/recruitment");
   revalidatePath("/workspace/recruitment/shortlisting");
   revalidatePath("/workspace/recruitment/interviews");
+  revalidatePath("/workspace/recruitment/templates");
   revalidatePath("/careers");
   redirect(messagePath(route, "saved", "Vacancy saved."));
+}
+
+export async function saveVacancyTemplate(data: FormData) {
+  const route = "/workspace/recruitment/templates";
+  const { supabase, workspaceId, userId } = await requireRecruitmentAccess();
+  if (!workspaceId || !userId) redirect("/workspace");
+  try {
+    const name = clean(data.get("templateName"), 120);
+    if (!name) throw new Error("Template name is required.");
+    const templateId = clean(data.get("templateId"), 80);
+    const title = clean(data.get("title"), 180) || null;
+    const values = {
+      ...await parsePostingFields(data, workspaceId, supabase),
+      name,
+      notes: clean(data.get("templateDescription"), 500) || null,
+      default_title: title,
+      updated_at: new Date().toISOString(),
+    };
+    const query = templateId
+      ? supabase.from("job_opening_templates").update(values).eq("id", templateId).eq("workspace_id", workspaceId)
+      : supabase.from("job_opening_templates").insert({ ...values, workspace_id: workspaceId, created_by: userId });
+    const { data: saved, error } = await query.select("id").maybeSingle();
+    if (error) throw new Error(error.code === "23505" ? "A template with that name already exists." : error.message);
+    if (!saved) throw new Error("Template not found or you do not have permission to edit it.");
+  } catch (error) {
+    redirect(messagePath(route, "error", error instanceof Error ? error.message : "Template could not be saved."));
+  }
+  revalidatePath(route);
+  revalidatePath("/workspace/recruitment");
+  redirect(messagePath(route, "saved", "Vacancy template saved."));
+}
+
+export async function deleteVacancyTemplate(data: FormData) {
+  const route = "/workspace/recruitment/templates";
+  const templateId = clean(data.get("templateId"), 80);
+  const { supabase, workspaceId } = await requireRecruitmentAccess();
+  if (!workspaceId) redirect("/workspace");
+  if (!templateId || clean(data.get("confirmDelete"), 10) !== "yes") redirect(messagePath(route, "error", "Confirm the template deletion before continuing."));
+  const { data: deleted, error } = await supabase.from("job_opening_templates").delete().eq("id", templateId).eq("workspace_id", workspaceId).select("id").maybeSingle();
+  if (error) redirect(messagePath(route, "error", error.message));
+  if (!deleted) redirect(messagePath(route, "error", "Template not found or you do not have permission to delete it."));
+  revalidatePath(route);
+  redirect(messagePath(route, "saved", "Vacancy template deleted."));
 }
 
 export async function deleteVacancy(data: FormData) {
@@ -133,7 +185,7 @@ export async function deleteVacancy(data: FormData) {
   if (!openingId || clean(data.get("confirmDelete"), 10) !== "yes") redirect(messagePath(route, "error", "Confirm the vacancy deletion in the page before continuing."));
 
   const { data: openingData, error: readError } = await supabase.from("job_openings")
-    .select("id,job_applications(candidate_id,candidates(id,resume_path,cover_letter_path))")
+    .select("id,job_applications(candidate_id,form_responses,candidates(id,resume_path,cover_letter_path))")
     .eq("id", openingId).eq("workspace_id", workspaceId).maybeSingle();
   const opening = openingData as unknown as VacancyDeleteRecord | null;
   if (readError || !opening) redirect(messagePath(route, "error", "Vacancy not found or you do not have permission to delete it."));
@@ -149,8 +201,10 @@ export async function deleteVacancy(data: FormData) {
   if (applicationLookupError) redirect(messagePath(route, "error", "Related applicant records could not be checked safely. Vacancy was kept; retry."));
   const applicationReferences = (remainingApplications ?? []) as ApplicationReference[];
   const linkedElsewhere = new Set(applicationReferences.filter((application) => application.job_opening_id !== openingId).map((application) => application.candidate_id));
-  const filePaths = applicants.filter((candidate) => !linkedElsewhere.has(candidate.id)).flatMap((candidate) => [candidate.resume_path, candidate.cover_letter_path]
-    .filter((path: unknown): path is string => typeof path === "string" && path.startsWith("intake/")));
+  const filePaths = [
+    ...applicants.filter((candidate) => !linkedElsewhere.has(candidate.id)).flatMap((candidate) => [candidate.resume_path, candidate.cover_letter_path]),
+    ...(opening.job_applications ?? []).flatMap((application) => Object.values(application.form_responses ?? {})),
+  ].filter((path: unknown): path is string => typeof path === "string" && path.startsWith("intake/"));
   const paths = [...new Set<string>(filePaths)];
   if (paths.length) {
     const { error } = await supabase.storage.from("betanor-candidate-documents").remove(paths);

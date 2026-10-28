@@ -7,12 +7,12 @@ export async function applyToJob(data: FormData): Promise<{ ok: boolean; message
   const email = String(data.get("email") ?? "").trim();
   const resumePath = String(data.get("resumePath") ?? "").trim();
   const coverLetterPath = String(data.get("coverLetterPath") ?? "").trim();
-  let formResponses: Record<string, string>;
+  let formResponses: Record<string, string | string[]>;
 
   try {
     const parsed = JSON.parse(String(data.get("formResponses") ?? "{}")) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
-    formResponses = Object.fromEntries(Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+    formResponses = Object.fromEntries(Object.entries(parsed).filter((entry): entry is [string, string | string[]] => typeof entry[1] === "string" || (Array.isArray(entry[1]) && entry[1].every((item) => typeof item === "string"))));
   } catch {
     return { ok: false, message: "Please review the application answers and try again." };
   }

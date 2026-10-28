@@ -5,11 +5,12 @@
 | Route | Purpose | Access |
 |---|---|---|
 | `/careers` | Public active vacancies and application submission with private CV and optional cover-letter upload | Public; active/date-valid vacancies only |
-| `/workspace/recruitment` | Create, edit, publish/unpublish, archive, or delete vacancies and configure dropdown/conditional questions | Staff with `recruitment.manage` |
+| `/workspace/recruitment` | Create, edit, publish/unpublish, archive, or delete vacancies; configure typed and conditional applicant questions; start from a saved template | Staff with `recruitment.manage` |
 | `/workspace/recruitment/shortlisting` | Candidate review, names, score, notes, attachments, and pipeline stage | Staff with `recruitment.manage` |
 | `/workspace/recruitment/interviews` | Shortlist/interview queue, date/time/location/notes, outcome, and attachments | Staff with `recruitment.manage` |
+| `/workspace/recruitment/templates` | Create, list, update, and delete reusable vacancy posting/form templates | Staff with `recruitment.manage` |
 
-The People navigation exposes Recruitment, Shortlisting, and Interviews as separate role-filtered links. Private candidate files are opened through short-lived signed URLs; no public object URL is issued.
+The People navigation exposes Recruitment, Shortlisting, Interviews, and Vacancy templates as role-filtered links. Private candidate files are opened through short-lived signed URLs; no public object URL is issued.
 
 ## Noren first integrated release
 
